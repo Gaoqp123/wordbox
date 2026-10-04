@@ -3,6 +3,7 @@ import type { RuntimeStatus } from '@shared/ipc-contract'
 import CapturePanel from './features/capture/CapturePanel'
 import HistoryPanel from './features/history/HistoryPanel'
 import LookupPanel from './features/lookup/LookupPanel'
+import ReviewPanel from './features/review/ReviewPanel'
 import VocabularyPanel from './features/vocabulary/VocabularyPanel'
 
 /**
@@ -12,11 +13,12 @@ import VocabularyPanel from './features/vocabulary/VocabularyPanel'
  * 切标签会重新挂载面板，等于顺带刷新数据（生词本刚加入的词立刻能看到）。
  */
 
-type TabKey = 'lookup' | 'vocabulary' | 'history' | 'capture'
+type TabKey = 'lookup' | 'vocabulary' | 'review' | 'history' | 'capture'
 
 const TABS: ReadonlyArray<{ key: TabKey; label: string }> = [
   { key: 'lookup', label: '查词' },
   { key: 'vocabulary', label: '生词本' },
+  { key: 'review', label: '复习' },
   { key: 'history', label: '历史' },
   { key: 'capture', label: '调试' }
 ]
@@ -66,6 +68,7 @@ function App(): React.JSX.Element {
 
       {tab === 'lookup' ? <LookupPanel /> : null}
       {tab === 'vocabulary' ? <VocabularyPanel /> : null}
+      {tab === 'review' ? <ReviewPanel /> : null}
       {tab === 'history' ? <HistoryPanel /> : null}
       {tab === 'capture' ? <CapturePanel status={status} /> : null}
 

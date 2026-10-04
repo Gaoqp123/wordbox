@@ -45,6 +45,7 @@ type CardRow = {
   difficulty: number
   elapsed_days: number
   scheduled_days: number
+  learning_steps: number
   reps: number
   lapses: number
   state: string
@@ -105,6 +106,7 @@ function toCard(row: CardRow): Card {
     difficulty: row.difficulty,
     elapsedDays: row.elapsed_days,
     scheduledDays: row.scheduled_days,
+    learningSteps: row.learning_steps,
     reps: row.reps,
     lapses: row.lapses,
     state: row.state as CardState,
@@ -201,10 +203,18 @@ export class UserRepository {
       this.db
         .prepare(
           `INSERT INTO cards (id, word_id, due, stability, difficulty, elapsed_days,
-             scheduled_days, reps, lapses, state, last_review, suspended)
-           VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 'New', NULL, 0)`
+             scheduled_days, learning_steps, reps, lapses, state, last_review, suspended)
+           VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 'New', NULL, 0)`
         )
         .run(cardId, wordId, now)
+
+      // 建卡的同一个事务里回填历史：卡片是"新词"，但用户是先查过才收进来的
+      this.db
+        .prepare(
+          `UPDATE lookups SET promoted_word_id = ?
+           WHERE promoted_word_id IS NULL AND lemma COLLATE NOCASE = ?`
+        )
+        .run(wordId, input.lemma)
 
       this.db.exec('COMMIT')
     } catch (error) {
@@ -333,6 +343,11 @@ export class UserRepository {
     return row ? toCard(row) : null
   }
 
+  getCardById(id: string): Card | null {
+    const row = this.db.prepare('SELECT * FROM cards WHERE id = ?').get(id) as CardRow | undefined
+    return row ? toCard(row) : null
+  }
+
   listDueCards(now: number, limit = 20): Card[] {
     const rows = this.db
       .prepare(
@@ -343,5 +358,66 @@ export class UserRepository {
       )
       .all(now, limit) as CardRow[]
     return rows.map(toCard)
+  }
+
+  /** 保存一次复习后的卡片状态 */
+  updateCard(card: Card): void {
+    this.db
+      .prepare(
+        `UPDATE cards SET
+           due = ?, stability = ?, difficulty = ?, elapsed_days = ?, scheduled_days = ?,
+           learning_steps = ?, reps = ?, lapses = ?, state = ?, last_review = ?, suspended = ?
+         WHERE id = ?`
+      )
+      .run(
+        card.due,
+        card.stability,
+        card.difficulty,
+        card.elapsedDays,
+        card.scheduledDays,
+        card.learningSteps,
+        card.reps,
+        card.lapses,
+        card.state,
+        card.lastReview ?? null,
+        card.suspended ? 1 : 0,
+        card.id
+      )
+  }
+
+  /** 追加一条复习流水 */
+  appendReviewLog(
+    log: {
+      cardId: string
+      rating: number
+      reviewedAt: number
+      durationMs?: number
+      stateBefore: string
+      stateAfter: string
+    },
+    id: string = newId()
+  ): void {
+    this.db
+      .prepare(
+        `INSERT INTO review_logs (id, card_id, rating, reviewed_at, duration_ms, state_before, state_after)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        id,
+        log.cardId,
+        log.rating,
+        log.reviewedAt,
+        log.durationMs ?? 0,
+        log.stateBefore,
+        log.stateAfter
+      )
+  }
+
+  /** 复习流水条数，用来显示"今天复习了多少张" */
+  countReviewLogsSince(since: number): number {
+    const row = this.db
+      .prepare('SELECT COUNT(*) AS total FROM review_logs WHERE reviewed_at >= ?')
+      .get(since) as { total: number } | undefined
+    return row?.total ?? 0
   }
 }

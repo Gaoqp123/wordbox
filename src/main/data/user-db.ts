@@ -89,6 +89,15 @@ export const MIGRATIONS: readonly Migration[] = [
         CREATE INDEX idx_lookups_term ON lookups(term COLLATE NOCASE);
       `)
     }
+  },
+  {
+    version: 2,
+    description: '补上 FSRS 的 learning_steps 字段',
+    up: (db) => {
+      // 这张表在 v1 就建好了，这里只加一列。SQLite 的 ALTER TABLE ADD COLUMN 会
+      // 用默认值填满已有行，所以老库升级上来不会缺字段。
+      db.exec('ALTER TABLE cards ADD COLUMN learning_steps INTEGER NOT NULL DEFAULT 0')
+    }
   }
 ]
 

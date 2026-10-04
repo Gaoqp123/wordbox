@@ -11,9 +11,11 @@ import type {
   AddWordResult,
   LookupRecord,
   LookupResponse,
+  ReviewQueueItem,
   VocabularyPatch,
   Word
 } from '@shared/types'
+import type { Grade } from '@shared/domain/review-format'
 import { grabSelection, syntheticCopyStatus } from './services/grab'
 import { registerDefaultHotkeys, unregisterAllHotkeys } from './services/hotkey'
 import {
@@ -30,6 +32,7 @@ import {
   userStoreStatus
 } from './services/user-store'
 import { addWord, archiveWord, listLookups, listWords, updateWord } from './services/vocabulary'
+import { dueCards, gradeCard, reviewedSince } from './services/review'
 import { createMainWindow } from './windows/main-window'
 
 let mainWindow: BrowserWindow | null = null
@@ -127,6 +130,17 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.historyList, (_event, limit: unknown): LookupRecord[] =>
     listLookups(typeof limit === 'number' ? limit : 100)
   )
+  ipcMain.handle(IPC_CHANNELS.reviewDue, (_event, limit: unknown): ReviewQueueItem[] =>
+    dueCards(Date.now(), typeof limit === 'number' ? limit : 30)
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.reviewGrade,
+    (_event, cardId: unknown, rating: unknown): ReviewQueueItem | null =>
+      typeof cardId === 'string' && isGrade(rating) ? gradeCard(cardId, rating) : null
+  )
+  ipcMain.handle(IPC_CHANNELS.reviewStat, (_event, since: unknown): number =>
+    reviewedSince(typeof since === 'number' ? since : 0)
+  )
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -169,4 +183,9 @@ function isAddWordRequest(value: unknown): value is AddWordRequest {
     typeof entry.query === 'string' &&
     Array.isArray(entry.sensesZh)
   )
+}
+
+/** 评分只能是 1–4，别的一律拒绝——数据库里写进一个 7 分，谁也解释不了 */
+function isGrade(value: unknown): value is Grade {
+  return value === 1 || value === 2 || value === 3 || value === 4
 }

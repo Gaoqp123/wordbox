@@ -6,10 +6,12 @@ import type {
   AddWordRequest,
   AddWordResult,
   LookupRecord,
+  ReviewQueueItem,
   VocabularyPatch,
   Word,
   WordStatus
 } from '@shared/types'
+import type { Grade } from '@shared/domain/review-format'
 
 /**
  * 白名单 IPC 接口：界面能做什么，由这里唯一决定。
@@ -43,6 +45,16 @@ const api = {
 
   listLookups: (limit?: number): Promise<LookupRecord[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.historyList, limit),
+
+  /** 复习：取到期卡、评分、今日已复习数 */
+  dueCards: (limit?: number): Promise<ReviewQueueItem[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.reviewDue, limit),
+
+  gradeCard: (cardId: string, rating: Grade): Promise<ReviewQueueItem | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.reviewGrade, cardId, rating),
+
+  reviewedSince: (since: number): Promise<number> =>
+    ipcRenderer.invoke(IPC_CHANNELS.reviewStat, since),
 
   /** 订阅快捷键触发的取词结果；返回取消订阅的函数 */
   onGrabResult: (listener: (result: GrabResult) => void): (() => void) => {

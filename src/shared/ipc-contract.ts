@@ -24,7 +24,11 @@ export const IPC_CHANNELS = {
   vocabUpdate: 'vocab:update',
   vocabArchive: 'vocab:archive',
   /** 查询历史 */
-  historyList: 'history:list'
+  historyList: 'history:list',
+  /** 复习 */
+  reviewDue: 'review:due',
+  reviewGrade: 'review:grade',
+  reviewStat: 'review:stat'
 } as const
 
 /** 这次取词是谁触发的：查词快捷键 / 查句快捷键 / 界面按钮 */

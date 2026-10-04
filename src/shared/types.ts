@@ -120,6 +120,8 @@ export type Card = {
   difficulty: number
   elapsedDays: number
   scheduledDays: number
+  /** FSRS 的学习步进计数（学习阶段的第几步） */
+  learningSteps: number
   reps: number
   lapses: number
   state: CardState
@@ -163,4 +165,10 @@ export type VocabularyPatch = {
   source?: string
   userTags?: string[]
   contexts?: ContextEntry[]
+}
+
+/** 复习队列里的一项：卡片 + 它对应的词条（界面要显示"词 + 你遇到它的那句话"） */
+export type ReviewQueueItem = {
+  card: Card
+  word: Word
 }

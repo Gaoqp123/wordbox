@@ -5,10 +5,12 @@ import type {
   AddWordRequest,
   AddWordResult,
   LookupRecord,
+  ReviewQueueItem,
   VocabularyPatch,
   Word,
   WordStatus
 } from '@shared/types'
+import type { Grade } from '@shared/domain/review-format'
 
 export interface WordboxApi {
   grabSelection: () => Promise<GrabResult>
@@ -24,6 +26,9 @@ export interface WordboxApi {
   updateWord: (id: string, patch: VocabularyPatch) => Promise<Word | null>
   archiveWord: (id: string) => Promise<boolean>
   listLookups: (limit?: number) => Promise<LookupRecord[]>
+  dueCards: (limit?: number) => Promise<ReviewQueueItem[]>
+  gradeCard: (cardId: string, rating: Grade) => Promise<ReviewQueueItem | null>
+  reviewedSince: (since: number) => Promise<number>
   onGrabResult: (listener: (result: GrabResult) => void) => () => void
 }
 

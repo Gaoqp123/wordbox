@@ -72,6 +72,91 @@ describe('落盘与 WAL', () => {
   })
 })
 
+describe('迁移 v2', () => {
+  it('给 cards 表补上 FSRS 需要的 learning_steps 列', () => {
+    const db = freshDatabase()
+    const columns = db.prepare('PRAGMA table_info(cards)').all() as Array<{ name: string }>
+    expect(columns.map((column) => column.name)).toContain('learning_steps')
+    expect(MIGRATIONS[MIGRATIONS.length - 1].version).toBe(2)
+  })
+})
+
+describe('UserRepository · 卡片与复习流水', () => {
+  let repo: UserRepository
+
+  beforeEach(() => {
+    repo = new UserRepository(freshDatabase())
+  })
+
+  const word = {
+    lemma: 'run',
+    display: 'running',
+    briefZh: 'n. 赛跑',
+    contexts: []
+  }
+
+  it('按 id 取卡，并能写回新状态', () => {
+    const { card } = repo.addWord(word, NOW)
+    const loaded = repo.getCardById(card.id)
+    expect(loaded?.state).toBe('New')
+
+    repo.updateCard({
+      ...card,
+      due: NOW + 86_400_000,
+      stability: 3.5,
+      difficulty: 5.2,
+      scheduledDays: 1,
+      learningSteps: 2,
+      reps: 1,
+      state: 'Review',
+      lastReview: NOW
+    })
+
+    const updated = repo.getCardById(card.id)
+    expect(updated?.due).toBe(NOW + 86_400_000)
+    expect(updated?.state).toBe('Review')
+    expect(updated?.learningSteps).toBe(2)
+    expect(updated?.reps).toBe(1)
+  })
+
+  it('追加流水后能按时间统计', () => {
+    const { card } = repo.addWord(word, NOW)
+    repo.appendReviewLog({
+      cardId: card.id,
+      rating: 3,
+      reviewedAt: NOW,
+      stateBefore: 'New',
+      stateAfter: 'Review'
+    })
+    repo.appendReviewLog({
+      cardId: card.id,
+      rating: 1,
+      reviewedAt: NOW + 5000,
+      stateBefore: 'Review',
+      stateAfter: 'Relearning'
+    })
+
+    expect(repo.countReviewLogsSince(NOW - 1)).toBe(2)
+    expect(repo.countReviewLogsSince(NOW + 1)).toBe(1)
+    expect(repo.countReviewLogsSince(NOW + 10_000)).toBe(0)
+  })
+
+  it('加入生词本时回填查询历史的 promoted_word_id', () => {
+    repo.recordLookup({ term: 'running', lemma: 'run', now: NOW })
+    repo.recordLookup({ term: 'run', lemma: 'run', now: NOW + 1 })
+    repo.recordLookup({ term: 'mice', lemma: 'mouse', now: NOW + 2 })
+
+    const { word: added } = repo.addWord(word, NOW + 3)
+
+    const lookups = repo.listLookups()
+    const mine = lookups.filter((item) => item.lemma === 'run')
+    const other = lookups.find((item) => item.lemma === 'mouse')
+
+    expect(mine.every((item) => item.promotedWordId === added.id)).toBe(true)
+    expect(other?.promotedWordId).toBeUndefined()
+  })
+})
+
 describe('UserRepository · 查询历史', () => {
   let repo: UserRepository
 
