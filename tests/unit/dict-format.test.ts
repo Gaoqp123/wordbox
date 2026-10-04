@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   briefTranslation,
   lemmaKindLabel,
+  parseExchangeLemma,
   parseTags,
   splitSenses,
   tagLabel
@@ -51,5 +52,27 @@ describe('briefTranslation', () => {
   it('只取前几个义项', () => {
     expect(briefTranslation(['a', 'b', 'c'])).toBe('a；b')
     expect(briefTranslation(['a'])).toBe('a')
+  })
+})
+
+describe('parseExchangeLemma', () => {
+  it('读出原形与变形类型', () => {
+    expect(parseExchangeLemma('0:run/1:i/i:running/s:runnings')).toEqual({
+      lemma: 'run',
+      kind: 'i'
+    })
+    expect(parseExchangeLemma('0:good/1:r/d:bettered/s:betters')).toEqual({
+      lemma: 'good',
+      kind: 'r'
+    })
+  })
+
+  it('只有变形没有原形时返回 null（说明它本身就是原形）', () => {
+    expect(parseExchangeLemma('d:perceived/p:perceived/i:perceiving')).toBeNull()
+  })
+
+  it('空值返回 null', () => {
+    expect(parseExchangeLemma('')).toBeNull()
+    expect(parseExchangeLemma(null)).toBeNull()
   })
 })

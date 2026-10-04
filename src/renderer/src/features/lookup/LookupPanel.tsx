@@ -21,17 +21,50 @@ function speak(word: string): void {
   synthesis.speak(utterance)
 }
 
-function Restoration({ entry }: { entry: DictEntry }): React.JSX.Element | null {
-  const restored =
-    entry.lemma !== undefined && entry.lemma.toLowerCase() !== entry.query.toLowerCase()
-  if (!restored) return null
+/**
+ * 原形提示。
+ *
+ * 分两种情形，措辞必须区分开：
+ * - 查的词自己就是词条（running、better），只是告诉用户"它的原形是谁"，并给一个跳转入口；
+ * - 查的词在词库里不存在、是靠还原才命中的，那才叫"已还原"。
+ * 混为一谈会让用户以为我们偷偷把词换了。
+ */
+function Restoration({
+  entry,
+  onLookup
+}: {
+  entry: DictEntry
+  onLookup: (word: string) => void
+}): React.JSX.Element | null {
+  if (!entry.lemma) return null
 
+  const lemma = entry.lemma
+  const redirected = entry.word.toLowerCase() !== entry.query.toLowerCase()
   const kind = lemmaKindLabel(entry.lemmaKind)
+  const kindText = kind ? `（${kind}）` : ''
+  const heuristic = entry.lemmaSource === 'heuristic' ? '（按拼写规则推断）' : ''
+
   return (
-    <p className="text-xs text-sky-300/80">
-      已还原：{entry.query} → {entry.lemma}
-      {kind ? `（${kind}）` : ''}
-      {entry.lemmaSource === 'heuristic' ? '（按拼写规则推断）' : ''}
+    <p className="flex flex-wrap items-center gap-2 text-xs text-sky-300/80">
+      {redirected ? (
+        <span>
+          已还原：{entry.query} → {entry.lemma}
+          {kindText}
+          {heuristic}
+        </span>
+      ) : (
+        <span>
+          {entry.query} 是 {lemma} 的{kind ?? '变形'}
+          {heuristic}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => onLookup(lemma)}
+        className="rounded border border-sky-800 px-1.5 py-0.5 text-sky-200 hover:bg-sky-900/50"
+      >
+        查原形 {lemma}
+      </button>
     </p>
   )
 }
@@ -55,7 +88,13 @@ function Meta({ entry }: { entry: DictEntry }): React.JSX.Element {
   )
 }
 
-function EntryCard({ entry }: { entry: DictEntry }): React.JSX.Element {
+function EntryCard({
+  entry,
+  onLookup
+}: {
+  entry: DictEntry
+  onLookup: (word: string) => void
+}): React.JSX.Element {
   const [detailed, setDetailed] = useState(false)
 
   return (
@@ -79,7 +118,7 @@ function EntryCard({ entry }: { entry: DictEntry }): React.JSX.Element {
         </button>
       </div>
 
-      <Restoration entry={entry} />
+      <Restoration entry={entry} onLookup={onLookup} />
       <Meta entry={entry} />
 
       {detailed ? (
@@ -165,7 +204,7 @@ export default function LookupPanel(): React.JSX.Element {
       {response === null ? (
         <p className="text-sm text-slate-500">断网也能查——词库就在本地。</p>
       ) : response.entry ? (
-        <EntryCard entry={response.entry} />
+        <EntryCard entry={response.entry} onLookup={(word) => void search(word)} />
       ) : (
         <div className="space-y-2 rounded-xl border border-slate-700 bg-slate-900/60 p-5">
           <p className="text-sm text-slate-300">

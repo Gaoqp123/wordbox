@@ -63,3 +63,36 @@ export function lemmaKindLabel(kind: string | null | undefined): string | undefi
 export function briefTranslation(senses: string[], max = 2): string {
   return senses.slice(0, max).join('；')
 }
+
+/**
+ * 从 exchange 字段里读出原形与变形类型。
+ *
+ * 格式形如 `0:good/1:r/d:bettered/s:betters`：`0` 是原形，`1` 是"当前词相对原形
+ * 属于哪种变形"（i 现在分词 / s 复数 / r 比较级 / t 最高级 / d 过去分词 / p 过去式 / 3 三单）。
+ *
+ * 这一层的意义：像 running、better、mice 这类形态**自己就是词条**，查询会直接命中，
+ * 不会走词形还原。但用户仍然需要知道"它的原形是谁"，所以提示必须从词条自身的
+ * exchange 里读出来，而不是只在"查不到才还原"的分支里给。
+ */
+export function parseExchangeLemma(
+  exchange: string | null | undefined
+): { lemma: string; kind?: string } | null {
+  if (!exchange) return null
+
+  let lemma: string | undefined
+  let kind: string | undefined
+
+  for (const item of exchange.split('/')) {
+    const separator = item.indexOf(':')
+    if (separator < 0) continue
+
+    const key = item.slice(0, separator)
+    const value = item.slice(separator + 1).trim()
+    if (value.length === 0) continue
+
+    if (key === '0') lemma = value
+    else if (key === '1') kind = value
+  }
+
+  return lemma ? { lemma, kind } : null
+}

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
-import { parseTags, splitSenses } from '@shared/domain/dict-format'
+import { parseExchangeLemma, parseTags, splitSenses } from '@shared/domain/dict-format'
 import { lemmaCandidates } from '@shared/domain/lemma'
 import type { DictEntry, DictStatus, LemmaSource, LookupResponse } from '@shared/types'
 import { DictionaryDb, type DictRow } from '../data/dictionary-db'
@@ -72,7 +72,21 @@ type LemmaHint = {
   kind?: string
 }
 
+/**
+ * 词条自己的 exchange 里就写着原形。
+ *
+ * 必须单独做这一步：running / better / mice 这类形态在 ECDICT 里**本身就是词条**，
+ * 查询会直接命中，压根走不到"靠词形还原才查到"的分支。可用户依然需要知道原形是谁，
+ * 所以提示要从词条自身读，而不是只在还原分支里给。
+ */
+function lemmaFromRow(row: DictRow): LemmaHint | undefined {
+  const parsed = parseExchangeLemma(row.exchange)
+  if (!parsed || parsed.lemma.toLowerCase() === row.word.toLowerCase()) return undefined
+  return { lemma: parsed.lemma, source: 'ecdict', kind: parsed.kind }
+}
+
 function toEntry(row: DictRow, query: string, hint?: LemmaHint): DictEntry {
+  const lemma = hint ?? lemmaFromRow(row)
   return {
     word: row.word,
     query,
@@ -86,9 +100,9 @@ function toEntry(row: DictRow, query: string, hint?: LemmaHint): DictEntry {
     exchange: row.exchange ?? undefined,
     sensesZh: splitSenses(row.translation),
     sensesEn: splitSenses(row.definition),
-    lemma: hint?.lemma,
-    lemmaSource: hint?.source,
-    lemmaKind: hint?.kind
+    lemma: lemma?.lemma,
+    lemmaSource: lemma?.source,
+    lemmaKind: lemma?.kind
   }
 }
 
