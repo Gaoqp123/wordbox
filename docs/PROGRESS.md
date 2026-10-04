@@ -10,12 +10,12 @@
 
 | 项目 | 值 |
 |---|---|
-| 当前阶段 | M0 骨架 + 取词验证 |
-| 阶段进度 | 5 / 7（技术验证中：取词已完成，SQLite 方案待验证） |
-| 本次已完成 | `docs/adr/` 14 条决策记录 |
-| 下一步 | CI（GitHub Actions）：由用户手写，我提供指导；随后做 SQLite 方案验证 |
+| 当前阶段 | **M0 已完成**，准备进入 M1 离线词典 |
+| 阶段进度 | 7 / 7 |
+| 本次已完成 | SQLite 选型确定（`node:sqlite`），M0 收口 |
+| 下一步 | M1：ECDICT 数据管线 → 产出 `ecdict.db` → 查询页 → 词形还原 → 查询历史 |
 | 阻塞项 | 无 |
-| 待拍板 | 3 项，见第 5 节 |
+| 待拍板 | 2 项，见第 5 节（第 1 项已决） |
 
 ---
 
@@ -23,7 +23,7 @@
 
 | 里程碑 | 内容 | 状态 | 完成日 |
 |---|---|---|---|
-| M0 | 骨架 + 取词验证 | 进行中 | — |
+| M0 | 骨架 + 取词验证 | 已完成 | 2026-10-04 |
 | M1 | 离线词典 | 未开始 | — |
 | M2 | 生词本 + 复习闭环 | 未开始 | — |
 | M3 | 快速查询窗 | 未开始 | — |
@@ -35,10 +35,10 @@
 - [x] 仓库初始化：`git init`、MIT LICENSE、`.gitignore`、`.editorconfig`、README（2026-10-04，另加 `.gitattributes`）
 - [x] 脚手架：electron-vite + React + TS + Tailwind + ESLint / Prettier / Vitest（2026-10-04）
 - [x] 三段式骨架跑通：主窗口能开、preload 能通信、渲染进程能收主进程推送（2026-10-04）
-- [ ] CI：lint / typecheck / test / build
+- [x] CI：lint / typecheck / test / build（2026-10-04，首次运行 54 秒全绿）
 - [x] `docs/adr/`：规划第 2 节的 14 条决策各一条（2026-10-04，含 M0 实测新增的 D14）
 - [x] 技术验证（取词部分，2026-10-04）：**结论 = 模拟按键不能做主路径，改用剪贴板兜底**
-- [ ] 技术验证（SQLite 部分）：`node:sqlite` 与 `better-sqlite3` 二选一
+- [x] 技术验证（SQLite 部分，2026-10-04）：选定 `node:sqlite`，免原生模块重编译
 
 ### M1-M4 任务清单
 
@@ -69,6 +69,29 @@
 
 ## 4. 会话日志
 
+### 2026-10-04 · SQLite 选型确定，M0 收口
+
+- 做了：写 `scripts/spike/sqlite-check.cjs`，在真实 Electron 进程里验证内置 SQLite。
+  脚本在 Windows 上把结论同时写进 `out/sqlite-spike.txt`，不依赖 stdout 回显——
+  Electron 主进程的 console 输出在 Windows 上经常不回显，这是踩过的坑。
+- 结果（Electron 39.8.10 / Node 22.22.1）：`require('node:sqlite')` 成功，
+  `DatabaseSync` 可用，内存库与文件库读写正常，中文往返正确。
+- 结论：**选 `node:sqlite`**。核心理由是不引入原生模块，
+  省掉"按 Electron ABI 重编译"这一整类故障；退路是 `better-sqlite3`，
+  Repository 层已隔离驱动，替换成本集中在 `main/data/`。
+- **M0（骨架 + 取词验证）7/7 全部完成**，可以进 M1。
+
+### 2026-10-04 · CI 上线，M0 验收达成
+
+- 做了：用户按指导手写 `.github/workflows/ci.yml`；本地先预演了 CI 的四条命令
+  （含此前从未跑过的 `electron-vite build`）确认全过；建立 GitHub 远端并首次推送。
+- 结果：`gh run list` 显示 `completed / success`，耗时 54 秒。
+  **M0 验收条件"push 后 Actions 全绿"达成**，远端 https://github.com/Gaoqp123/wordbox.git。
+- 顺带修好的环境问题：用户机器上 `C:\z_software\Git` 从未加入 PATH
+  （安装时选的 "Git from Git Bash only"），导致终端里敲 `git` 找不到命令。
+  已加入用户级 PATH，与卡巴斯基无关。
+- 提交：`8cee91e ci: 添加 GitHub Actions 质量门禁`。
+
 ### 2026-10-04 · 决策记录（ADR）
 
 - 做了：把规划第 2 节的 14 条决策各写成一份 ADR，放在 `docs/adr/`，并加索引 `README.md`。
@@ -78,7 +101,7 @@
   记录里保留了实测过程与四条备选方案的评估。
 - 产出：`docs/adr/README.md` 加 `0001`~`0014`，共 15 个文件。
 
-### 2026-10-04 · M0 取词验证收口
+### 2026-10-04 · M0 取词验证收口（已完成）
 
 **结论：在一台装有行为检测类安全软件的机器上，模拟 Ctrl+C 不能作为取词主路径；
 "用户自己 Ctrl+C + 我们读剪贴板"的兜底路径可用，体验合格。**

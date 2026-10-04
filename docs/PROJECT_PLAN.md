@@ -510,7 +510,7 @@ interface ReviewLog {
 | 脚手架 | `electron-vite` | main / preload / renderer 三段 + HMR 开箱可用 |
 | 界面 | React 18 + Tailwind CSS | 生态成熟，AI 协作踩坑少 |
 | 状态 | Zustand（仅界面状态） | 业务数据以 SQLite 为唯一真源 |
-| 本地库 | `better-sqlite3` 或新版 Electron 内置 `node:sqlite` | 后者免原生模块重编译，M0 花半小时验证后定 |
+| 本地库 | **`node:sqlite`**（Electron 内置） | M0 实测可用（Electron 39.8.10 / Node 22.22.1）：免原生模块、免 ABI 重编译；退路是 `better-sqlite3` |
 | 复习算法 | `ts-fsrs` | |
 | 发音 | Web Speech API（系统 TTS） | 离线、免费、无需音频文件 |
 | 测试 | Vitest（单元）+ Playwright（Electron e2e） | |
@@ -566,15 +566,17 @@ M4 之前必须做完这个决定，别等到发布当天才发现。
 
 ### M0 骨架 + 取词验证（3–4 天）
 
-- [ ] 装 pnpm，配置 git 身份，初始化仓库，MIT License、`.gitignore`、`.editorconfig`
-- [ ] `electron-vite` + React + TS + Tailwind + ESLint/Prettier + Vitest
-- [ ] 三段式骨架跑通：主窗口能开、preload 能通信、渲染进程能读写主进程的数据
-- [ ] CI：lint / typecheck / test / build
-- [ ] 建立 `docs/adr/`，把第 2 节的 14 条决策各写一条（D1–D13 加 M0 实测新增的 D14）
-- [ ] **技术验证（半天）**：模拟 Ctrl+C 取词在 Readest 和浏览器里能不能用；
-      `node:sqlite` 与 `better-sqlite3` 二选一
+- [x] 装 pnpm，配置 git 身份，初始化仓库，MIT License、`.gitignore`、`.editorconfig`（2026-10-04）
+- [x] `electron-vite` + React + TS + Tailwind + ESLint/Prettier + Vitest（2026-10-04）
+- [x] 三段式骨架跑通：主窗口能开、preload 能通信、渲染进程能读写主进程的数据（2026-10-04）
+- [x] CI：lint / typecheck / test / build（2026-10-04，首次运行 54 秒全绿）
+- [x] 建立 `docs/adr/`，把第 2 节的 14 条决策各写一条（2026-10-04）
+- [x] **技术验证 · 取词（2026-10-04）**：结论见 D14 —— 模拟 Ctrl+C 被安全软件拦截，
+      改以"用户自己 Ctrl+C + 读剪贴板"为可用路径，实机复测通过
+- [x] **技术验证 · SQLite**：选定 `node:sqlite`（2026-10-04，Electron 39.8.10 实测可用，见 ADR-0008）
 
-**验收**：push 后 Actions 全绿；取词方案有明确结论（能或不能，不能就用兜底）。
+**验收**：push 后 Actions 全绿 ✅（2026-10-04，54 秒）；
+取词方案有明确结论 ✅（见 D14）。
 
 ### M1 离线词典（1–2 周）
 
@@ -647,7 +649,7 @@ M4 之前必须做完这个决定，别等到发布当天才发现。
 | 风险 | 影响 | 对策 |
 |---|---|---|
 | 某些程序不认合成的 Ctrl+C（终端多为 Ctrl+Shift+C，个别应用不响应） | 个别场景取不到词 | 主方案已覆盖绝大多数程序；特例走兜底（用户自己 Ctrl+C 再按快捷键）；设置里允许改"模拟复制"的按键组合 |
-| 原生模块（better-sqlite3）在 Electron 里重编译失败 | 卡住开发 | M0 验证 `node:sqlite` 作为替代；两者都不用 WASM SQLite（大词库不适合全量载入内存） |
+| ~~原生模块（better-sqlite3）在 Electron 里重编译失败~~ | ~~卡住开发~~ | **已消除**：M0 实测 Electron 内置 `node:sqlite` 可用并选定，不再引入原生模块；仍不用 WASM SQLite（大词库不适合全量载入内存） |
 | 词库体积与构建时间 | 安装包大、打包慢 | 先内置全量；实测不行再改"常用子集 + 按需下载" |
 | 取词时序敏感（读得太早拿到旧的） | 偶发查错词 | 固定等待 + 内容变化校验 + 重试一次；这是必须写测试的地方 |
 | 范围膨胀 | 项目烂尾 | 严格按 P0/P1/P2；新想法记进 `docs/IDEAS.md` 延后，不插队 |

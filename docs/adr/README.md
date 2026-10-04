@@ -24,7 +24,7 @@
 | [0005](./0005-explicit-promotion.md) | 加入生词本是显式动作 | 已接受 |
 | [0006](./0006-fsrs.md) | 复习调度用 FSRS | 已接受 |
 | [0007](./0007-ecdict-offline.md) | 离线词库用 ECDICT 全量 | 已接受 |
-| [0008](./0008-sqlite-two-databases.md) | 存储用 SQLite 双库 | 已接受（选型待定） |
+| [0008](./0008-sqlite-two-databases.md) | 存储用 SQLite 双库 | 已接受（选定 node:sqlite） |
 | [0009](./0009-no-mobile-first-version.md) | 第一版不做手机端 | 已接受 |
 | [0010](./0010-no-browser-extension.md) | 不做浏览器扩展 | 已接受 |
 | [0011](./0011-no-external-examples.md) | 不抓取外部例句 | 已接受 |

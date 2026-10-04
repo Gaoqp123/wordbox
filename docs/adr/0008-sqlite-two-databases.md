@@ -1,6 +1,6 @@
 # ADR-0008：存储用 SQLite 双库
 
-- 状态：已接受（实现选型待定）
+- 状态：已接受（驱动选型已定：`node:sqlite`）
 - 日期：2026-10-04
 - 规划条目：§2 D8
 - 关联：ADR-0007（离线词库）、ADR-0001（Electron）
@@ -25,10 +25,15 @@
 - 好：查词毫秒级；备份 = 复制文件 + 导出 JSON；只读词库与用户数据隔离，
   升级词库不动已背过的卡片（配合 ADR 里的"释义快照"设计）。
 - 代价：`user.db` 需要 schema 版本与迁移机制，而且迁移必须可测试。
-- 待定：`node:sqlite`（Electron 内置，免原生模块重编译）与 `better-sqlite3`（成熟，需重编译）
-  二选一，在 M0 技术验证阶段用实际运行结果决定，选定后本条记录更新为"已确定"。
+- 已定：驱动选 **`node:sqlite`**（Electron 内置）。
+  2026-10-04 在 Electron 39.8.10 / Node 22.22.1 实测：模块可直接 `require`，
+  `DatabaseSync` 可用，内存库与文件库读写正常，中文往返正确
+  （验证脚本 `scripts/spike/sqlite-check.cjs`，可重复运行）。
+  选它的核心理由是**不引入原生模块**——省掉"按 Electron ABI 重编译"这一整类故障，
+  而这类故障在 Windows 上尤其费时间。
 
 ## 复核触发条件
 
-- 选定 SQLite 驱动后更新本条；
+- `node:sqlite` 在 Node 22 中仍标注为实验性：若随 Electron 升级发生 API 变更或移除，
+  退路是 `better-sqlite3`。Repository 层已隔离驱动，替换成本集中在 `main/data/` 一处；
 - 若将来需要多设备同步（非目标，但 F-22 可能引出），`user.db` 的结构与冲突策略需要重新设计。
