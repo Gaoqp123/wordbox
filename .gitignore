@@ -1,0 +1,45 @@
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 构建与打包产物
+dist/
+out/
+release/
+build/
+*.tsbuildinfo
+
+# 词库产物与原始数据（体积大，用脚本生成）
+resources/ecdict.db
+data/raw/
+
+# 用户数据（私人）
+user.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 环境与密钥
+.env
+.env.*
+*.key
+*.pem
+
+# 编辑器与系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 日志与测试产物
+*.log
+logs/
+coverage/
+test-results/
+playwright-report/
+
+# 临时文件
+*.tmp
+*.bak
+~$*
