@@ -11,9 +11,9 @@
 | 项目 | 值 |
 |---|---|
 | 当前阶段 | M0 骨架 + 取词验证 |
-| 阶段进度 | 1 / 7 |
-| 本次已完成 | 环境核对；建立进度记录 |
-| 下一步 | 初始化仓库与骨架文件 |
+| 阶段进度 | 2 / 7 |
+| 本次已完成 | 仓库初始化 |
+| 下一步 | 脚手架：electron-vite + React + TS + Tailwind + 质量工具 |
 | 阻塞项 | 无 |
 | 待拍板 | 3 项，见第 5 节 |
 
@@ -32,7 +32,7 @@
 ### M0 任务清单
 
 - [x] 环境准备与核对（2026-10-04）
-- [ ] 仓库初始化：`git init`、MIT LICENSE、`.gitignore`、`.editorconfig`、README
+- [x] 仓库初始化：`git init`、MIT LICENSE、`.gitignore`、`.editorconfig`、README（2026-10-04，另加 `.gitattributes`）
 - [ ] 脚手架：electron-vite + React + TS + Tailwind + ESLint / Prettier / Vitest
 - [ ] 三段式骨架跑通：主窗口能开、preload 能通信、渲染进程能读写主进程数据
 - [ ] CI：lint / typecheck / test / build
@@ -67,6 +67,19 @@
 ---
 
 ## 4. 会话日志
+
+### 2026-10-04 · 仓库初始化（第二步）
+
+- 做了：`git init -b main`；新增 MIT LICENSE、`.gitignore`、`.editorconfig`、`.gitattributes`、README 门面；
+  把规划与进度两份文档一并纳入首次提交。
+- 产出：提交 `d1f91e6`（6 个文件、930 行）与 `b6e6ed9`（`.gitattributes`）；分支 `main`。
+- 踩到的坑（都已解决）：
+  - 沙箱把 `.git` 目录设为只读，git 的写操作（`add` / `commit`）必须提权执行。
+  - `git init` 由沙箱账号执行，`.git` 属主变成 `CodexSandboxOffline`，**连你自己的终端都会报 dubious ownership**；
+    已删除这个零提交的空仓库，改用你的账号重建。
+  - 沙箱创建的文件属主同样是 `CodexSandboxOffline`（写权限正常，属主只是元数据）；
+    已用 `icacls /setowner` 统一改回 `Gaoqp`。
+- 结论：仓库可用，工作区干净，无残留。
 
 ### 2026-10-04 · 建立进度记录
 
@@ -104,6 +117,8 @@
 | 项 | 现象 | 处理 |
 |---|---|---|
 | Codex 沙箱隔离 `%APPDATA%` / `%LOCALAPPDATA%\node\corepack` | 沙箱内裸调 `npm` 报 `MODULE_NOT_FOUND`；`pnpm` 一律 EPERM（corepack 要写 `lastKnownGood.json`）；且这些路径在沙箱里 `Test-Path` 返回 True 而 `dir` 说找不到 | 无法靠配置绕过（沙箱只允许写工作区与临时目录）。涉及 pnpm 的操作要么提权执行，要么在你自己的终端里跑 |
+| 沙箱把仓库 `.git` 设为只读 | git 的写操作（`add`、`commit`、`tag`、`push`）在沙箱内一律 `Permission denied` | 只读命令（`status`、`log`、`diff`）需要前缀 `git -c safe.directory='*'`；写操作提权执行 |
+| 沙箱创建的文件属主为 `CodexSandboxOffline` | 不影响读写（有写权限），但属主不是你 | 工作片段收尾时用 `icacls <文件> /setowner` 改回 `Gaoqp` |
 | `C:\z_software\nodejs` 目录权限 | 仅 Administrators 有完全控制权 | 不要把它设为 npm 全局前缀；不要往那里装东西 |
 | 两份 npm 并存 | 终端里生效的是 12.0.2，node 自带 11.12.1 | 日常无影响，不处理 |
 
