@@ -28,5 +28,17 @@ export default defineConfig(
       ...eslintPluginReactRefresh.configs.vite.rules
     }
   },
+  {
+    // scripts/ 下是直接跑在 Node/Electron 侧的工具脚本（例如 M0 的 SQLite 验证脚本）。
+    // 它们用 CommonJS 写最省事，也本就是能独立运行的 .cjs，所以关掉两条面向 TS 模块的规则。
+    files: ['scripts/**/*.{js,cjs,mjs}'],
+    languageOptions: {
+      sourceType: 'commonjs'
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off'
+    }
+  },
   eslintConfigPrettier
 )
