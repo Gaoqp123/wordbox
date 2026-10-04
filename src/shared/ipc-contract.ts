@@ -52,6 +52,8 @@ export type GrabFailureReason =
   | 'clipboard-unchanged'
   /** 按下快捷键时焦点在我们自己的窗口上，模拟复制只能复制到我们自己 */
   | 'own-window-focused'
+  /** 模拟复制不可用，需要用户自己按 Ctrl+C 复制一次 */
+  | 'need-manual-copy'
   /** 取到的内容是空的 */
   | 'empty'
   /** 取到的内容里没有字母，不像英文词或句子 */
@@ -82,6 +84,8 @@ export type GrabDiagnostics = {
   copyExitCode?: number
   /** 模拟复制子进程的错误输出 */
   copyStderr?: string
+  /** 模拟复制根本无法发起时（例如被安全软件拒绝创建子进程）的错误信息 */
+  copyError?: string
   /** 等待剪贴板变化的累计时长 */
   waitedMs: number
   /** 实际尝试了几次模拟复制 */

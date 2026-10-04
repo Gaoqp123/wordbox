@@ -203,19 +203,25 @@ export async function grabSelection(
     let attempts = 0
 
     if (!syntheticCopyState.disabled) {
-      while (attempts < MAX_ATTEMPTS) {
-        attempts += 1
-        const outcome = await sendCopyKeystroke()
-        diagnostics.copyExitCode = outcome.exitCode
-        if (outcome.foregroundBefore) diagnostics.foregroundBefore = outcome.foregroundBefore
-        if (outcome.foregroundAfter) diagnostics.foregroundAfter = outcome.foregroundAfter
-        if (outcome.stderr) diagnostics.copyStderr = previewText(outcome.stderr, 200)
+      try {
+        while (attempts < MAX_ATTEMPTS) {
+          attempts += 1
+          const outcome = await sendCopyKeystroke()
+          diagnostics.copyExitCode = outcome.exitCode
+          if (outcome.foregroundBefore) diagnostics.foregroundBefore = outcome.foregroundBefore
+          if (outcome.foregroundAfter) diagnostics.foregroundAfter = outcome.foregroundAfter
+          if (outcome.stderr) diagnostics.copyStderr = previewText(outcome.stderr, 200)
 
-        const waitStartedAt = Date.now()
-        captured = await waitForClipboardChange(before.text, timeoutMs)
-        diagnostics.waitedMs += Date.now() - waitStartedAt
+          const waitStartedAt = Date.now()
+          captured = await waitForClipboardChange(before.text, timeoutMs)
+          diagnostics.waitedMs += Date.now() - waitStartedAt
 
-        if (captured !== before.text) break
+          if (captured !== before.text) break
+        }
+      } catch (error) {
+        // 例如安全软件直接拒绝创建子进程（spawn EPERM）。
+        // 记下来就好，绝不能让这一步把整条链路打断——后面还有剪贴板兜底这条正路。
+        diagnostics.copyError = error instanceof Error ? error.message : String(error)
       }
 
       syntheticCopyState = afterSyntheticAttempt(syntheticCopyState, captured === before.text)
@@ -255,10 +261,15 @@ export async function grabSelection(
       }
     }
 
-    const reason: GrabFailureReason =
-      verdict.reason === 'clipboard-unchanged' && diagnostics.ownWindowFocused
-        ? 'own-window-focused'
-        : verdict.reason
+    const synthesisUnavailable =
+      diagnostics.syntheticDisabled || diagnostics.copyError !== undefined
+
+    let reason: GrabFailureReason = verdict.reason
+    if (verdict.reason === 'clipboard-unchanged' && diagnostics.ownWindowFocused) {
+      reason = 'own-window-focused'
+    } else if (synthesisUnavailable) {
+      reason = 'need-manual-copy'
+    }
 
     return { ok: false, trigger, reason, elapsedMs, diagnostics }
   } catch (error) {

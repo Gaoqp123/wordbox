@@ -5,6 +5,8 @@ const FAILURE_TEXT: Record<GrabFailureReason, string> = {
   'clipboard-unchanged': '没取到东西：目标程序没有响应模拟复制，或当前没有选中任何文本',
   'own-window-focused':
     '按下的瞬间焦点在 WordBox 窗口上，模拟复制只会复制到我们自己。请先点回目标程序再按快捷键',
+  'need-manual-copy':
+    '模拟复制不可用（多半被安全软件拦了）。用法：在目标程序里选中文本，按 Ctrl+C，再按快捷键',
   empty: '取到的内容是空的',
   'no-letters': '取到的内容里没有英文字母，不像一个词或句子',
   error: '取词过程出错'
@@ -22,15 +24,16 @@ function Diagnostics({ result }: { result: GrabResult }): React.JSX.Element | nu
 
   const rows: Array<[string, string]> = [
     ['焦点在自身窗口', diagnostics.ownWindowFocused ? '是' : '否'],
-    ['模拟前的前台窗口', diagnostics.foregroundBefore ?? '(空)'],
-    ['模拟后的前台窗口', diagnostics.foregroundAfter ?? '(空)'],
-    ['剪贴板（取词前）', diagnostics.clipboardBefore ?? '(空)'],
-    ['剪贴板（取词后）', diagnostics.clipboardAfter ?? '(空)'],
+    ['模拟前的前台窗口', diagnostics.foregroundBefore ?? '(未采集)'],
+    ['模拟后的前台窗口', diagnostics.foregroundAfter ?? '(未采集)'],
+    ['剪贴板（取词前）', diagnostics.clipboardBefore ?? '(未采集)'],
+    ['剪贴板（取词后）', diagnostics.clipboardAfter ?? '(未采集)'],
     [
       '模拟复制退出码',
       diagnostics.copyExitCode === undefined ? '(未运行)' : String(diagnostics.copyExitCode)
     ],
     ['模拟复制错误输出', diagnostics.copyStderr ?? '(无)'],
+    ['模拟复制无法发起', diagnostics.copyError ?? '(无)'],
     ['等待 / 尝试次数', `${diagnostics.waitedMs} ms / ${diagnostics.attempts} 次`]
   ]
 
