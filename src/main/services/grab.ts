@@ -9,6 +9,7 @@ import type {
 import { cleanCapturedText, hasLetters, judgeCapture, previewText } from '@shared/domain/grab-guard'
 import {
   afterSyntheticAttempt,
+  disableSyntheticCopy,
   initialSyntheticCopyState,
   SYNTHETIC_FAILURE_LIMIT,
   type SyntheticCopyState
@@ -203,6 +204,7 @@ export async function grabSelection(
     let attempts = 0
 
     if (!syntheticCopyState.disabled) {
+      let hardFailure = false
       try {
         while (attempts < MAX_ATTEMPTS) {
           attempts += 1
@@ -222,9 +224,12 @@ export async function grabSelection(
         // 例如安全软件直接拒绝创建子进程（spawn EPERM）。
         // 记下来就好，绝不能让这一步把整条链路打断——后面还有剪贴板兜底这条正路。
         diagnostics.copyError = error instanceof Error ? error.message : String(error)
+        hardFailure = true
       }
 
-      syntheticCopyState = afterSyntheticAttempt(syntheticCopyState, captured === before.text)
+      syntheticCopyState = hardFailure
+        ? disableSyntheticCopy()
+        : afterSyntheticAttempt(syntheticCopyState, captured === before.text)
       diagnostics.syntheticDisabled = syntheticCopyState.disabled
     }
 

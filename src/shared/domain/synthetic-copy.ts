@@ -23,6 +23,16 @@ export function initialSyntheticCopyState(): SyntheticCopyState {
 }
 
 /**
+ * 直接判定这条路不可用。
+ *
+ * 用在"连子进程都创建不了"这种硬错误上（例如安全软件拒绝 spawn）：
+ * 这不是偶发失败，再试只会一遍遍触发拦截提示，不如一次就停。
+ */
+export function disableSyntheticCopy(limit: number = SYNTHETIC_FAILURE_LIMIT): SyntheticCopyState {
+  return { failureStreak: limit, disabled: true }
+}
+
+/**
  * 记录一次模拟复制的成败，返回新的状态。
  *
  * 注意：已经熔断之后不会再自动恢复。恢复要由用户显式操作（改设置或重启），

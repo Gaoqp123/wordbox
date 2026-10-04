@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   afterSyntheticAttempt,
+  disableSyntheticCopy,
   initialSyntheticCopyState,
   SYNTHETIC_FAILURE_LIMIT
 } from '@shared/domain/synthetic-copy'
@@ -31,5 +32,14 @@ describe('afterSyntheticAttempt', () => {
   it('熔断后不会因为一次成功就恢复', () => {
     const state = afterSyntheticAttempt({ failureStreak: 3, disabled: true }, false)
     expect(state.disabled).toBe(true)
+  })
+})
+
+describe('disableSyntheticCopy', () => {
+  it('硬错误一次到位：直接熔断，不占用失败额度', () => {
+    expect(disableSyntheticCopy()).toEqual({
+      failureStreak: SYNTHETIC_FAILURE_LIMIT,
+      disabled: true
+    })
   })
 })
