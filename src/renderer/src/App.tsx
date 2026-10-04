@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { GrabFailureReason, GrabResult, RuntimeStatus } from '@shared/ipc-contract'
+import type { GrabFailureReason, GrabResult, GrabSource, RuntimeStatus } from '@shared/ipc-contract'
 
 const FAILURE_TEXT: Record<GrabFailureReason, string> = {
   'clipboard-unchanged': '没取到东西：目标程序没有响应模拟复制，或当前没有选中任何文本',
@@ -8,6 +8,11 @@ const FAILURE_TEXT: Record<GrabFailureReason, string> = {
   empty: '取到的内容是空的',
   'no-letters': '取到的内容里没有英文字母，不像一个词或句子',
   error: '取词过程出错'
+}
+
+const SOURCE_TEXT: Record<GrabSource, string> = {
+  'synthetic-copy': '模拟复制（我们替你按了 Ctrl+C）',
+  'clipboard-fallback': '剪贴板兜底（你按的 Ctrl+C）'
 }
 
 /** 诊断面板：定位"为什么没取到"用，可以整段复制发给开发者 */
@@ -88,6 +93,20 @@ function App(): React.JSX.Element {
               {hotkey.error ? <span className="text-rose-300">{hotkey.error}</span> : null}
             </li>
           )) ?? <li className="text-slate-500">读取中…</li>}
+          {status ? (
+            <li className="flex items-center gap-3">
+              <span
+                className={status.syntheticCopy.disabled ? 'text-amber-400' : 'text-emerald-400'}
+              >
+                {status.syntheticCopy.disabled ? '已熔断' : '启用中'}
+              </span>
+              <span className="text-slate-300">模拟复制</span>
+              <span className="text-slate-500">
+                连续失败 {status.syntheticCopy.failureStreak} / {status.syntheticCopy.limit}{' '}
+                次即自动停用
+              </span>
+            </li>
+          ) : null}
         </ul>
       </section>
 
@@ -101,6 +120,10 @@ function App(): React.JSX.Element {
             ，看这个窗口里有没有出现那个词
           </li>
           <li>选中一整句再按一次，看整句能不能取到</li>
+          <li>
+            如果安全软件拦住了模拟复制（模拟复制那行会显示“已熔断”），改成：选中文本 → 自己按{' '}
+            <code className="rounded bg-slate-800 px-1.5 py-0.5">Ctrl+C</code> → 再按快捷键
+          </li>
         </ol>
       </section>
 
@@ -123,6 +146,7 @@ function App(): React.JSX.Element {
           <div className="space-y-2">
             <p className="text-xs text-slate-400">
               触发方式 {result.trigger} · 耗时 {result.elapsedMs} ms
+              {result.ok ? ` · 来源：${SOURCE_TEXT[result.source]}` : ''}
             </p>
             {result.ok ? (
               <p className="rounded-lg bg-slate-800 p-3 text-base break-words">{result.text}</p>
@@ -132,6 +156,12 @@ function App(): React.JSX.Element {
                 {result.detail ? `（${result.detail}）` : ''}
               </p>
             )}
+            {result.ok && result.source === 'clipboard-fallback' ? (
+              <p className="rounded-lg bg-amber-950/60 p-3 text-sm text-amber-200">
+                模拟复制没能生效，这里显示的是剪贴板里的内容。正确用法：在目标程序里选中文本，先按
+                Ctrl+C，再按快捷键。
+              </p>
+            ) : null}
             <Diagnostics result={result} />
           </div>
         )}

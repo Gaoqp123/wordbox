@@ -31,7 +31,21 @@ export type RuntimeStatus = {
   chromeVersion: string
   nodeVersion: string
   hotkeys: HotkeyBinding[]
+  /** 模拟复制（合成 Ctrl+C）的健康状况 */
+  syntheticCopy: {
+    disabled: boolean
+    failureStreak: number
+    limit: number
+  }
 }
+
+/**
+ * 这次取到的文本是怎么来的。
+ *
+ * 分成两种来源是必要的：模拟复制被安全软件拦下时，我们退化成读用户自己复制的剪贴板内容，
+ * 界面上必须如实标明——否则用户会以为"我明明没选中它"。
+ */
+export type GrabSource = 'synthetic-copy' | 'clipboard-fallback'
 
 export type GrabFailureReason =
   /** 剪贴板内容与取词前完全一致：目标程序没有响应模拟复制 */
@@ -54,6 +68,8 @@ export type GrabFailureReason =
 export type GrabDiagnostics = {
   /** 触发取词时，焦点是否在 WordBox 自己的窗口上 */
   ownWindowFocused: boolean
+  /** 本次是否跳过了模拟复制（已熔断） */
+  syntheticDisabled: boolean
   /** 模拟按键时 Windows 的前台窗口标题 */
   foregroundBefore?: string
   /** 按键发完之后的前台窗口标题 */
@@ -77,6 +93,7 @@ export type GrabResult =
       ok: true
       trigger: HotkeyTrigger
       text: string
+      source: GrabSource
       elapsedMs: number
       diagnostics?: GrabDiagnostics
     }

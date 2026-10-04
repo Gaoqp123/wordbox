@@ -6,7 +6,13 @@ import type {
   GrabResult,
   HotkeyTrigger
 } from '@shared/ipc-contract'
-import { judgeCapture, previewText } from '@shared/domain/grab-guard'
+import { cleanCapturedText, hasLetters, judgeCapture, previewText } from '@shared/domain/grab-guard'
+import {
+  afterSyntheticAttempt,
+  initialSyntheticCopyState,
+  SYNTHETIC_FAILURE_LIMIT,
+  type SyntheticCopyState
+} from '@shared/domain/synthetic-copy'
 
 /**
  * 取词：程序无关地拿到"用户选中的东西"。
@@ -71,6 +77,16 @@ const POLL_INTERVAL_MS = 40
 const DEFAULT_TIMEOUT_MS = 900
 /** 一次取词最多尝试几次模拟复制。取词时序敏感，重试一次能挡掉偶发的空转 */
 const MAX_ATTEMPTS = 2
+
+/** 模拟复制的熔断状态（会话级） */
+let syntheticCopyState: SyntheticCopyState = initialSyntheticCopyState()
+
+/** 上一次通过"剪贴板兜底"交给用户的文本，用来识别剪贴板里的旧内容 */
+let lastFallbackText: string | null = null
+
+export function syntheticCopyStatus(): SyntheticCopyState & { limit: number } {
+  return { ...syntheticCopyState, limit: SYNTHETIC_FAILURE_LIMIT }
+}
 
 type ClipboardSnapshot = {
   text: string
@@ -176,6 +192,7 @@ export async function grabSelection(
   const before = snapshot()
   const diagnostics: GrabDiagnostics = {
     ownWindowFocused: options.ownWindowFocused ?? false,
+    syntheticDisabled: syntheticCopyState.disabled,
     clipboardBefore: previewText(before.text),
     waitedMs: 0,
     attempts: 0
@@ -185,19 +202,24 @@ export async function grabSelection(
     let captured = before.text
     let attempts = 0
 
-    while (attempts < MAX_ATTEMPTS) {
-      attempts += 1
-      const outcome = await sendCopyKeystroke()
-      diagnostics.copyExitCode = outcome.exitCode
-      if (outcome.foregroundBefore) diagnostics.foregroundBefore = outcome.foregroundBefore
-      if (outcome.foregroundAfter) diagnostics.foregroundAfter = outcome.foregroundAfter
-      if (outcome.stderr) diagnostics.copyStderr = previewText(outcome.stderr, 200)
+    if (!syntheticCopyState.disabled) {
+      while (attempts < MAX_ATTEMPTS) {
+        attempts += 1
+        const outcome = await sendCopyKeystroke()
+        diagnostics.copyExitCode = outcome.exitCode
+        if (outcome.foregroundBefore) diagnostics.foregroundBefore = outcome.foregroundBefore
+        if (outcome.foregroundAfter) diagnostics.foregroundAfter = outcome.foregroundAfter
+        if (outcome.stderr) diagnostics.copyStderr = previewText(outcome.stderr, 200)
 
-      const waitStartedAt = Date.now()
-      captured = await waitForClipboardChange(before.text, timeoutMs)
-      diagnostics.waitedMs += Date.now() - waitStartedAt
+        const waitStartedAt = Date.now()
+        captured = await waitForClipboardChange(before.text, timeoutMs)
+        diagnostics.waitedMs += Date.now() - waitStartedAt
 
-      if (captured !== before.text) break
+        if (captured !== before.text) break
+      }
+
+      syntheticCopyState = afterSyntheticAttempt(syntheticCopyState, captured === before.text)
+      diagnostics.syntheticDisabled = syntheticCopyState.disabled
     }
 
     diagnostics.attempts = attempts
@@ -207,7 +229,30 @@ export async function grabSelection(
     const elapsedMs = Date.now() - startedAt
 
     if (verdict.ok) {
-      return { ok: true, trigger, text: verdict.text, elapsedMs, diagnostics }
+      lastFallbackText = null
+      return {
+        ok: true,
+        trigger,
+        text: verdict.text,
+        source: 'synthetic-copy',
+        elapsedMs,
+        diagnostics
+      }
+    }
+
+    // 兜底：模拟复制不可用时，退化成"用户自己按 Ctrl+C，我们只读剪贴板"。
+    // 只有内容与上次兜底交出去的文本不同才算数，避免把很久以前留在剪贴板里的东西当成本次查询。
+    const fallbackText = cleanCapturedText(before.text)
+    if (fallbackText.length > 0 && hasLetters(fallbackText) && fallbackText !== lastFallbackText) {
+      lastFallbackText = fallbackText
+      return {
+        ok: true,
+        trigger,
+        text: fallbackText,
+        source: 'clipboard-fallback',
+        elapsedMs,
+        diagnostics
+      }
     }
 
     const reason: GrabFailureReason =

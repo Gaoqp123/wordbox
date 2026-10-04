@@ -6,7 +6,7 @@ import {
   type HotkeyBinding,
   type RuntimeStatus
 } from '@shared/ipc-contract'
-import { grabSelection } from './services/grab'
+import { grabSelection, syntheticCopyStatus } from './services/grab'
 import { registerDefaultHotkeys, unregisterAllHotkeys } from './services/hotkey'
 import { createMainWindow } from './windows/main-window'
 
@@ -35,7 +35,8 @@ function buildRuntimeStatus(): RuntimeStatus {
     electronVersion: process.versions.electron,
     chromeVersion: process.versions.chrome,
     nodeVersion: process.versions.node,
-    hotkeys: hotkeyBindings
+    hotkeys: hotkeyBindings,
+    syntheticCopy: syntheticCopyStatus()
   }
 }
 
