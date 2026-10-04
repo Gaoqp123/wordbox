@@ -580,8 +580,9 @@ M4 之前必须做完这个决定，别等到发布当天才发现。
 
 ### M1 离线词典（1–2 周）
 
-- [ ] 下载 ECDICT（`github.com/skywind3000/ECDICT`），读 README 确认字段与许可
-- [ ] 写 `scripts/build_dict.py`（含索引与词形反查），产出 `ecdict.db`，记录实测体积与建库耗时
+- [x] 下载 ECDICT（`github.com/skywind3000/ECDICT`），读 README 确认字段与许可（2026-10-04，MIT License）
+- [x] 写 `scripts/build_dict.py`（含索引与词形反查），产出 `ecdict.db`（2026-10-04：
+      770,611 词条 / 89,314 条词形映射 / 95.9 MB / 建库 4.6 秒，记录在 `scripts/README.md`）
 - [ ] 主窗口查询页：输入 + 简洁/详细两级释义 + 发音
 - [ ] `shared/domain/lemma.ts`：词形还原，单元测试
 - [ ] 查询历史写入与列表
