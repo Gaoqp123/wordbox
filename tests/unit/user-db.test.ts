@@ -195,4 +195,14 @@ describe('UserRepository · 生词本', () => {
     expect(loaded?.contexts).toHaveLength(2)
     expect(loaded?.contexts[1].source).toBe('Chrome')
   })
+
+  it('按原形查重时忽略大小写，且只看未归档的', () => {
+    const { word } = repo.addWord(sampleWord, NOW)
+    expect(repo.findActiveByLemma('RUN')?.id).toBe(word.id)
+    expect(repo.findActiveByLemma('run')?.id).toBe(word.id)
+    expect(repo.findActiveByLemma('mouse')).toBeNull()
+
+    repo.archiveWord(word.id, NOW + 1)
+    expect(repo.findActiveByLemma('run')).toBeNull()
+  })
 })

@@ -6,7 +6,14 @@ import {
   type HotkeyBinding,
   type RuntimeStatus
 } from '@shared/ipc-contract'
-import type { LookupResponse } from '@shared/types'
+import type {
+  AddWordRequest,
+  AddWordResult,
+  LookupRecord,
+  LookupResponse,
+  VocabularyPatch,
+  Word
+} from '@shared/types'
 import { grabSelection, syntheticCopyStatus } from './services/grab'
 import { registerDefaultHotkeys, unregisterAllHotkeys } from './services/hotkey'
 import {
@@ -22,6 +29,7 @@ import {
   userRepository,
   userStoreStatus
 } from './services/user-store'
+import { addWord, archiveWord, listLookups, listWords, updateWord } from './services/vocabulary'
 import { createMainWindow } from './windows/main-window'
 
 let mainWindow: BrowserWindow | null = null
@@ -104,6 +112,22 @@ app.whenReady().then(() => {
     suggestWords(typeof prefix === 'string' ? prefix : '', typeof limit === 'number' ? limit : 8)
   )
 
+  ipcMain.handle(IPC_CHANNELS.vocabAdd, (_event, request: unknown): AddWordResult =>
+    isAddWordRequest(request) ? addWord(request) : { status: 'error', message: '请求格式不正确' }
+  )
+  ipcMain.handle(IPC_CHANNELS.vocabList, (_event, options: unknown): Word[] =>
+    listWords(isRecord(options) ? (options as Parameters<typeof listWords>[0]) : {})
+  )
+  ipcMain.handle(IPC_CHANNELS.vocabUpdate, (_event, id: unknown, patch: unknown): Word | null =>
+    typeof id === 'string' && isRecord(patch) ? updateWord(id, patch as VocabularyPatch) : null
+  )
+  ipcMain.handle(IPC_CHANNELS.vocabArchive, (_event, id: unknown): boolean =>
+    typeof id === 'string' ? archiveWord(id) : false
+  )
+  ipcMain.handle(IPC_CHANNELS.historyList, (_event, limit: unknown): LookupRecord[] =>
+    listLookups(typeof limit === 'number' ? limit : 100)
+  )
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createMainWindow()
@@ -125,3 +149,24 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+/**
+ * IPC 是外部输入，必须校验。
+ *
+ * 这里只查"够不够打字"的关键字段：渲染进程传来的对象最终要写进数据库，
+ * 缺字段就该被挡在门外，而不是让 SQLite 抛一个没人看得懂的错。
+ */
+function isAddWordRequest(value: unknown): value is AddWordRequest {
+  if (!isRecord(value)) return false
+  const entry = value.entry
+  return (
+    isRecord(entry) &&
+    typeof entry.word === 'string' &&
+    typeof entry.query === 'string' &&
+    Array.isArray(entry.sensesZh)
+  )
+}

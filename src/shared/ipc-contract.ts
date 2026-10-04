@@ -17,7 +17,14 @@ export const IPC_CHANNELS = {
   /** 查词 */
   dictLookup: 'dict:lookup',
   /** 前缀候选（"你是不是想查……"） */
-  dictSuggest: 'dict:suggest'
+  dictSuggest: 'dict:suggest',
+  /** 生词本 */
+  vocabAdd: 'vocab:add',
+  vocabList: 'vocab:list',
+  vocabUpdate: 'vocab:update',
+  vocabArchive: 'vocab:archive',
+  /** 查询历史 */
+  historyList: 'history:list'
 } as const
 
 /** 这次取词是谁触发的：查词快捷键 / 查句快捷键 / 界面按钮 */

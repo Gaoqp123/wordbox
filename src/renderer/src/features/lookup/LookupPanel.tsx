@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { briefTranslation, lemmaKindLabel, tagLabel } from '@shared/domain/dict-format'
-import type { DictEntry, LookupResponse } from '@shared/types'
+import type { AddWordResult, DictEntry, LookupResponse } from '@shared/types'
 
 /**
  * 查词面板。
@@ -96,6 +96,11 @@ function EntryCard({
   onLookup: (word: string) => void
 }): React.JSX.Element {
   const [detailed, setDetailed] = useState(false)
+  const [addResult, setAddResult] = useState<AddWordResult | null>(null)
+
+  const addToVocabulary = async (): Promise<void> => {
+    setAddResult(await window.api.addWord({ entry }))
+  }
 
   return (
     <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-900/60 p-5">
@@ -116,7 +121,32 @@ function EntryCard({
         >
           {detailed ? '只看简洁' : '展开详细'}
         </button>
+        <button
+          type="button"
+          onClick={() => void addToVocabulary()}
+          className="rounded bg-emerald-700 px-2 py-0.5 text-xs text-white hover:bg-emerald-600"
+        >
+          ＋ 加入生词本
+        </button>
       </div>
+
+      {addResult ? (
+        <p
+          className={
+            addResult.status === 'added'
+              ? 'text-xs text-emerald-400'
+              : addResult.status === 'duplicate'
+                ? 'text-xs text-amber-300'
+                : 'text-xs text-rose-300'
+          }
+        >
+          {addResult.status === 'added'
+            ? '已加入生词本，并建了一张待复习的卡'
+            : addResult.status === 'duplicate'
+              ? `生词本里已经有「${addResult.word.lemma}」了`
+              : `加入失败：${addResult.message}`}
+        </p>
+      ) : null}
 
       <Restoration entry={entry} onLookup={onLookup} />
       <Meta entry={entry} />

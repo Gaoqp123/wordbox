@@ -139,3 +139,28 @@ export type LookupRecord = {
   /** 已加入生词本则指向 Word.id —— 这是"历史"与"生词本"唯一的纽带 */
   promotedWordId?: string
 }
+
+export type AddWordRequest = {
+  /** 加入时的查询结果——它就是释义快照的来源 */
+  entry: DictEntry
+  note?: string
+  userTags?: string[]
+  source?: string
+  /** 句模式下你选中的原句 */
+  context?: ContextEntry
+}
+
+export type AddWordResult =
+  | { status: 'added'; word: Word; card: Card }
+  /** 同一个原形已经在生词本里了，不重复添加 */
+  | { status: 'duplicate'; word: Word }
+  /** 可写库没准备好，或写入失败 */
+  | { status: 'error'; message: string }
+
+export type VocabularyPatch = {
+  display?: string
+  note?: string
+  source?: string
+  userTags?: string[]
+  contexts?: ContextEntry[]
+}

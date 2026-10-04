@@ -225,6 +225,24 @@ export class UserRepository {
     return row ? toWord(row) : null
   }
 
+  /**
+   * 按原形找一条还在生词本里的词条。
+   *
+   * 用途是查重：running 和 run 是同一个词的不同形态，加入生词本时应该认出来，
+   * 而不是让同一个原形出现两条。比较走 NOCASE（与 idx_words_lemma 索引的排序规则一致）。
+   */
+  findActiveByLemma(lemma: string): Word | null {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM words
+         WHERE lemma COLLATE NOCASE = ? AND status = 'active'
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1`
+      )
+      .get(lemma) as WordRow | undefined
+    return row ? toWord(row) : null
+  }
+
   listWords(options: { query?: string; status?: WordStatus | 'all'; limit?: number } = {}): Word[] {
     const status = options.status ?? 'active'
     const clauses: string[] = []
