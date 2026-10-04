@@ -570,7 +570,7 @@ M4 之前必须做完这个决定，别等到发布当天才发现。
 - [ ] `electron-vite` + React + TS + Tailwind + ESLint/Prettier + Vitest
 - [ ] 三段式骨架跑通：主窗口能开、preload 能通信、渲染进程能读写主进程的数据
 - [ ] CI：lint / typecheck / test / build
-- [ ] 建立 `docs/adr/`，把第 2 节的 13 条决策各写一条
+- [ ] 建立 `docs/adr/`，把第 2 节的 14 条决策各写一条（D1–D13 加 M0 实测新增的 D14）
 - [ ] **技术验证（半天）**：模拟 Ctrl+C 取词在 Readest 和浏览器里能不能用；
       `node:sqlite` 与 `better-sqlite3` 二选一
 
