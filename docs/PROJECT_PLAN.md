@@ -181,7 +181,14 @@ flowchart TB
 wordbox/
 ├─ README.md                   # 门面：定位 / 截图 / 安装 / 本地开发
 ├─ LICENSE                     # MIT
-├─ .gitignore                  # 排除 ecdict.db、user.db、原始词库
+├─ .gitignore / .gitattributes / .editorconfig
+├─ .npmrc                      # 包源与 Electron 二进制走国内镜像
+├─ pnpm-workspace.yaml         # pnpm 11 的配置落脚点（依赖构建放行名单）
+├─ package.json / electron.vite.config.ts / electron-builder.yml
+├─ tsconfig.json / tsconfig.node.json / tsconfig.web.json
+├─ eslint.config.mjs / .prettierrc.yaml / .prettierignore
+├─ .vscode/                    # 推荐插件与调试配置
+├─ build/                      # 打包图标（electron-builder 的 buildResources）
 ├─ docs/
 │  ├─ PROJECT_PLAN.md
 │  ├─ PROGRESS.md              # 进度记录：当前状态 / 会话日志 / 阻塞项
@@ -192,25 +199,30 @@ wordbox/
 │  ├─ build_dict.py            # ECDICT CSV → SQLite（含索引、词形反查）
 │  └─ README.md                # 数据管线：怎么下载、怎么复现
 ├─ resources/
-│  └─ ecdict.db                # 预处理产物（只读词库）
+│  ├─ icon.png                 # 窗口图标
+│  └─ ecdict.db                # 预处理产物（只读词库，M1 生成）
 ├─ src/
 │  ├─ main/
-│  │  ├─ index.ts
+│  │  ├─ index.ts              # 应用生命周期、IPC 注册
 │  │  ├─ windows/              # 主窗口、快速查询窗
-│  │  ├─ services/             # dictionary / grab / hotkey / tray / backup
-│  │  └─ data/                 # sqlite 连接、schema、repository
-│  ├─ preload/index.ts         # 白名单 IPC 接口
+│  │  ├─ services/             # grab（取词）/ hotkey（快捷键），后续 dictionary、tray、backup
+│  │  └─ data/                 # sqlite 连接、schema、repository（M2）
+│  ├─ preload/                 # index.ts + index.d.ts：白名单 IPC 接口
 │  ├─ shared/
-│  │  ├─ domain/               # 纯逻辑：srs / lemma / tokenize / grab-guard / stats
-│  │  ├─ types.ts              # 实体类型
+│  │  ├─ domain/               # 纯逻辑：grab-guard，后续 lemma / tokenize / srs / stats
+│  │  ├─ types.ts              # 实体类型（M2）
 │  │  └─ ipc-contract.ts       # 通道名与载荷类型（两端共用，改错会编译失败）
 │  └─ renderer/
-│     ├─ features/             # lookup / vocabulary / review / settings
-│     ├─ ui/
-│     └─ app/                  # 路由、布局、主题
-├─ tests/e2e/                  # Playwright + Electron
-├─ .github/workflows/          # ci.yml / release.yml
-└─ package.json
+│     ├─ index.html
+│     └─ src/                  # 界面代码根目录（electron-vite 约定）
+│        ├─ App.tsx / main.tsx / assets/
+│        ├─ features/          # lookup / vocabulary / review / settings（后续）
+│        ├─ ui/                # 通用组件与样式（后续）
+│        └─ app/               # 路由、布局、主题（后续）
+├─ tests/
+│  ├─ unit/                    # Vitest：纯逻辑与数据层
+│  └─ e2e/                     # Playwright + Electron
+└─ .github/workflows/          # ci.yml / release.yml
 ```
 
 ### 3.4 数据模型

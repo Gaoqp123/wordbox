@@ -11,9 +11,9 @@
 | 项目 | 值 |
 |---|---|
 | 当前阶段 | M0 骨架 + 取词验证 |
-| 阶段进度 | 2 / 7 |
-| 本次已完成 | 仓库初始化 |
-| 下一步 | 脚手架：electron-vite + React + TS + Tailwind + 质量工具 |
+| 阶段进度 | 2 / 7（第 3 项进行中：脚手架已就位，待 dev 首跑确认） |
+| 本次已完成 | 脚手架落地（electron-vite + React + TS + Tailwind + ESLint/Prettier/Vitest） |
+| 下一步 | 确认 `pnpm dev` 能起窗口，然后做取词实测 |
 | 阻塞项 | 无 |
 | 待拍板 | 3 项，见第 5 节 |
 
@@ -34,7 +34,9 @@
 - [x] 环境准备与核对（2026-10-04）
 - [x] 仓库初始化：`git init`、MIT LICENSE、`.gitignore`、`.editorconfig`、README（2026-10-04，另加 `.gitattributes`）
 - [ ] 脚手架：electron-vite + React + TS + Tailwind + ESLint / Prettier / Vitest
+      （文件已就位，typecheck / lint / unit test 全绿；**待 `pnpm dev` 首次起窗确认**）
 - [ ] 三段式骨架跑通：主窗口能开、preload 能通信、渲染进程能读写主进程数据
+      （代码已写，随上一条一起确认）
 - [ ] CI：lint / typecheck / test / build
 - [ ] `docs/adr/`：规划第 2 节的 13 条决策各一条
 - [ ] 技术验证：模拟 Ctrl+C 取词（Readest / 浏览器）+ SQLite 方案二选一
@@ -67,6 +69,27 @@
 ---
 
 ## 4. 会话日志
+
+### 2026-10-04 · 脚手架落地（第三步）
+
+- 做了：用官方 `@quick-start/create-electron` 在临时目录生成 electron-vite React + TS 模板，
+  按规划的三段式结构搬进仓库，补上模板没有的 Tailwind 与 Vitest，并写入 M0 取词骨架。
+- 产出：
+  - 根配置：`package.json`、`.npmrc`、`pnpm-workspace.yaml`、`electron.vite.config.ts`、
+    `electron-builder.yml`、三份 tsconfig、`eslint.config.mjs`、Prettier 配置、`.vscode/`
+  - `src/shared/ipc-contract.ts`（通道与载荷类型）、`src/shared/domain/grab-guard.ts`（纯逻辑判定）
+  - `src/main/`：应用生命周期 + `services/grab.ts`（剪贴板备份还原 + PowerShell 模拟 Ctrl+C）+
+    `services/hotkey.ts`（两个全局快捷键）+ `windows/main-window.ts`
+  - `src/preload/`：白名单 IPC 接口；`src/renderer/`：M0 验证面板
+  - `tests/unit/grab-guard.test.ts`：12 条断言
+- 验证结果：`tsc` 0 error（node + web 两套）；`eslint` 0 error 0 warning；`vitest` 12/12 通过。
+- 踩到的坑（都已解决）：
+  - pnpm 11 不再读 `package.json` 的 `pnpm` 字段，配置要写进 `pnpm-workspace.yaml`。
+  - 依赖安装脚本默认被拦下（安全策略），导致 **Electron 二进制根本没下载，但 `pnpm install` 仍然返回成功**，
+    错误只以 `[ERR_PNPM_IGNORED_BUILDS]` 挂在输出最后一行。这是最危险的一类坑。
+  - 改完配置后再跑 `pnpm install` 依然是 `Already up to date`，pnpm 会把上次的"忽略构建"记录原样重放，
+    必须显式 `pnpm rebuild` 才真正触发构建。
+- 结论：脚手架可用，已验证到编译与单测层面；窗口能否正常起来留待 `pnpm dev` 确认。
 
 ### 2026-10-04 · 仓库初始化（第二步）
 
@@ -119,6 +142,7 @@
 | Codex 沙箱隔离 `%APPDATA%` / `%LOCALAPPDATA%\node\corepack` | 沙箱内裸调 `npm` 报 `MODULE_NOT_FOUND`；`pnpm` 一律 EPERM（corepack 要写 `lastKnownGood.json`）；且这些路径在沙箱里 `Test-Path` 返回 True 而 `dir` 说找不到 | 无法靠配置绕过（沙箱只允许写工作区与临时目录）。涉及 pnpm 的操作要么提权执行，要么在你自己的终端里跑 |
 | 沙箱把仓库 `.git` 设为只读 | git 的写操作（`add`、`commit`、`tag`、`push`）在沙箱内一律 `Permission denied` | 只读命令（`status`、`log`、`diff`）需要前缀 `git -c safe.directory='*'`；写操作提权执行 |
 | 沙箱创建的文件属主为 `CodexSandboxOffline` | 不影响读写（有写权限），但属主不是你 | 工作片段收尾时用 `icacls <文件> /setowner` 改回 `Gaoqp` |
+| 沙箱读不了 `node_modules` 里的一部分文件 | `tsc` 报 `TS5083 Cannot read file`、`vitest` 报 `EPERM`，有的文件能读有的直接拒绝访问（连 `Get-Acl` 都失败） | 这是沙箱 ACL 策略，不是仓库问题。类型检查 / 测试 / 构建一律提权跑 |
 | `C:\z_software\nodejs` 目录权限 | 仅 Administrators 有完全控制权 | 不要把它设为 npm 全局前缀；不要往那里装东西 |
 | 两份 npm 并存 | 终端里生效的是 12.0.2，node 自带 11.12.1 | 日常无影响，不处理 |
 

@@ -2,12 +2,13 @@
 node_modules/
 .pnpm-store/
 
-# 构建与打包产物
+# 构建与打包产物（注意：build/ 存放打包图标，必须提交，不要忽略）
 dist/
 out/
-release/
-build/
+coverage/
 *.tsbuildinfo
+.eslintcache
+.vite/
 
 # 词库产物与原始数据（体积大，用脚本生成）
 resources/ecdict.db
