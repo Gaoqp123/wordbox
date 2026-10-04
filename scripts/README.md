@@ -33,12 +33,15 @@ python scripts\build_dict.py
 
 字段与 ECDICT 的 CSV 一一对应（`word` / `phonetic` / `definition` / `translation` /
 `pos` / `collins` / `oxford` / `tag` / `bnc` / `frq` / `exchange` / `detail` / `audio`），
-做了三处清洗：
+做了四处清洗：
 
 1. `word` 用 **NOCASE 主键**：精确查询大小写不敏感，且 `LIKE 'abc%'` 能走索引（前缀候选要用）。
 2. `translation` / `definition` 里的**字面量 `\n` 换成真实换行**。
    ECDICT 整个文件是一行一条记录，多个义项用两个字符 `\` `n` 分隔，界面按行拆分即可。
 3. 空字段存 `NULL` 而不是空字符串，查询时少一类边界情况。
+4. **`bnc` / `frq` 里的 0 归一化成 `NULL`**：ECDICT 用 0 表示"没进词频表"，
+   而 0 在排序中比任何真实排名都小，不处理的话按词频排序会把最生僻的词顶到最前面
+   （实测 `ubiqu%` 的第一条会是 ubiquinol 而不是 ubiquitous）。
 
 ### `lemma` 表
 
@@ -64,9 +67,9 @@ python scripts\build_dict.py
 | 建库耗时            | **4.6 秒**                             |
 | 精确查询耗时        | 约 0.03 ms / 次                        |
 
-> **前缀候选的排序坑**：`bnc` 为 NULL 的词条在 SQLite 里排在最前（NULL 在升序中最小），
-> 直接 `ORDER BY bnc` 会把最生僻的词顶上来——实测 `ubiqu%` 的前几条是 ubiquinol 这类词，
-> 而真正常用的 ubiquitous 排在后面。查询层应写成 `ORDER BY bnc IS NULL, bnc` 或 `COALESCE(bnc, 大数)`。
+> **前缀候选的排序**：SQLite 里 `NULL` 在升序中最小，所以查询层仍要写
+> `ORDER BY bnc IS NULL, bnc, ...` —— 建库时把 0 归一化成 NULL 只是让"未收录"
+> 只有一种表示，排序表达式该写还得写。
 
 ## 为什么不用 ECDICT 官方提供的 sqlite 包
 

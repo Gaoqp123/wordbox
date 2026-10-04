@@ -1,3 +1,5 @@
+import type { DictStatus } from './types'
+
 /**
  * 主进程与渲染进程共用的通道名与载荷类型。
  *
@@ -11,7 +13,11 @@ export const IPC_CHANNELS = {
   /** 主进程 -> 渲染进程：全局快捷键触发的取词结果 */
   grabFromHotkey: 'grab:from-hotkey',
   /** 渲染进程询问运行时状态（快捷键是否注册成功等） */
-  runtimeStatus: 'runtime:status'
+  runtimeStatus: 'runtime:status',
+  /** 查词 */
+  dictLookup: 'dict:lookup',
+  /** 前缀候选（"你是不是想查……"） */
+  dictSuggest: 'dict:suggest'
 } as const
 
 /** 这次取词是谁触发的：查词快捷键 / 查句快捷键 / 界面按钮 */
@@ -31,6 +37,8 @@ export type RuntimeStatus = {
   chromeVersion: string
   nodeVersion: string
   hotkeys: HotkeyBinding[]
+  /** 词库装载状态 */
+  dictionary: DictStatus
   /** 模拟复制（合成 Ctrl+C）的健康状况 */
   syntheticCopy: {
     disabled: boolean

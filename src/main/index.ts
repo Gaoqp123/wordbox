@@ -6,8 +6,16 @@ import {
   type HotkeyBinding,
   type RuntimeStatus
 } from '@shared/ipc-contract'
+import type { LookupResponse } from '@shared/types'
 import { grabSelection, syntheticCopyStatus } from './services/grab'
 import { registerDefaultHotkeys, unregisterAllHotkeys } from './services/hotkey'
+import {
+  closeDictionary,
+  dictionaryStatus,
+  lookupWord,
+  openDictionary,
+  suggestWords
+} from './services/dictionary'
 import { createMainWindow } from './windows/main-window'
 
 let mainWindow: BrowserWindow | null = null
@@ -36,7 +44,8 @@ function buildRuntimeStatus(): RuntimeStatus {
     chromeVersion: process.versions.chrome,
     nodeVersion: process.versions.node,
     hotkeys: hotkeyBindings,
-    syntheticCopy: syntheticCopyStatus()
+    syntheticCopy: syntheticCopyStatus(),
+    dictionary: dictionaryStatus()
   }
 }
 
@@ -52,6 +61,9 @@ app.whenReady().then(() => {
     mainWindow = null
   })
 
+  // 词库在窗口创建后立刻装载：装载失败不影响程序启动，状态会通过 runtimeStatus 报给界面
+  openDictionary()
+
   hotkeyBindings = registerDefaultHotkeys({
     word: () => void handleHotkey('word'),
     sentence: () => void handleHotkey('sentence')
@@ -61,6 +73,12 @@ app.whenReady().then(() => {
     grabSelection('manual', { ownWindowFocused: mainWindow?.isFocused() ?? false })
   )
   ipcMain.handle(IPC_CHANNELS.runtimeStatus, (): RuntimeStatus => buildRuntimeStatus())
+  ipcMain.handle(IPC_CHANNELS.dictLookup, (_event, term: unknown): LookupResponse =>
+    lookupWord(typeof term === 'string' ? term : '')
+  )
+  ipcMain.handle(IPC_CHANNELS.dictSuggest, (_event, prefix: unknown, limit: unknown): string[] =>
+    suggestWords(typeof prefix === 'string' ? prefix : '', typeof limit === 'number' ? limit : 8)
+  )
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -74,6 +92,7 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   unregisterAllHotkeys()
+  closeDictionary()
 })
 
 app.on('window-all-closed', () => {

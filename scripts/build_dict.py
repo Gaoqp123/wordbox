@@ -69,6 +69,16 @@ def to_int(value: str) -> int | None:
     return int(text) if text.isdigit() else None
 
 
+def to_rank(value: str) -> int | None:
+    """词频排名：ECDICT 用 0 表示"未收录进词频表"，按缺失处理。
+
+    0 不是有效排名，但它在排序里比任何真实排名都小——不归一化的话，
+    按词频排序时最生僻的词会排在最前面（前缀候选的实测就踩到了这个坑）。
+    """
+    rank = to_int(value)
+    return rank if rank and rank > 0 else None
+
+
 def to_text(value: str | None) -> str | None:
     """空字段统一存 NULL，而不是空字符串——查询时少一类边界情况。"""
     text = (value or "").strip()
@@ -129,8 +139,8 @@ def load_dict(cursor: sqlite3.Cursor, csv_path: Path) -> int:
                     to_int(row["collins"]),
                     to_int(row["oxford"]),
                     to_text(row["tag"]),
-                    to_int(row["bnc"]),
-                    to_int(row["frq"]),
+                    to_rank(row["bnc"]),
+                    to_rank(row["frq"]),
                     to_text(row["exchange"]),
                     to_text(row["detail"]),
                     to_text(row["audio"]),
