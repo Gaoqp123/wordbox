@@ -16,6 +16,12 @@ import {
   openDictionary,
   suggestWords
 } from './services/dictionary'
+import {
+  closeUserStore,
+  openUserStore,
+  userRepository,
+  userStoreStatus
+} from './services/user-store'
 import { createMainWindow } from './windows/main-window'
 
 let mainWindow: BrowserWindow | null = null
@@ -45,7 +51,8 @@ function buildRuntimeStatus(): RuntimeStatus {
     nodeVersion: process.versions.node,
     hotkeys: hotkeyBindings,
     syntheticCopy: syntheticCopyStatus(),
-    dictionary: dictionaryStatus()
+    dictionary: dictionaryStatus(),
+    userStore: userStoreStatus()
   }
 }
 
@@ -63,6 +70,7 @@ app.whenReady().then(() => {
 
   // 词库在窗口创建后立刻装载：装载失败不影响程序启动，状态会通过 runtimeStatus 报给界面
   openDictionary()
+  openUserStore()
 
   hotkeyBindings = registerDefaultHotkeys({
     word: () => void handleHotkey('word'),
@@ -73,9 +81,25 @@ app.whenReady().then(() => {
     grabSelection('manual', { ownWindowFocused: mainWindow?.isFocused() ?? false })
   )
   ipcMain.handle(IPC_CHANNELS.runtimeStatus, (): RuntimeStatus => buildRuntimeStatus())
-  ipcMain.handle(IPC_CHANNELS.dictLookup, (_event, term: unknown): LookupResponse =>
-    lookupWord(typeof term === 'string' ? term : '')
-  )
+  ipcMain.handle(IPC_CHANNELS.dictLookup, (_event, term: unknown): LookupResponse => {
+    const response = lookupWord(typeof term === 'string' ? term : '')
+
+    // 查到词就顺手记一笔历史。只记命中：查不到的东西不是"我查过的词"，
+    // 混进去只会让历史列表变成输入法垃圾场。
+    // 历史写不进去（库里出问题）也不该让查词失败，所以吞掉异常。
+    if (response.entry) {
+      try {
+        userRepository()?.recordLookup({
+          term: response.query,
+          lemma: response.entry.lemma ?? response.entry.word
+        })
+      } catch {
+        // 忽略：历史是附加价值，不是查词的必要条件
+      }
+    }
+
+    return response
+  })
   ipcMain.handle(IPC_CHANNELS.dictSuggest, (_event, prefix: unknown, limit: unknown): string[] =>
     suggestWords(typeof prefix === 'string' ? prefix : '', typeof limit === 'number' ? limit : 8)
   )
@@ -93,6 +117,7 @@ app.whenReady().then(() => {
 app.on('will-quit', () => {
   unregisterAllHotkeys()
   closeDictionary()
+  closeUserStore()
 })
 
 app.on('window-all-closed', () => {

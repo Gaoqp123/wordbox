@@ -55,3 +55,87 @@ export type DictStatus = {
   entries: number
   error?: string
 }
+
+// ---------------------------------------------------------------------------
+// 用户数据（user.db）
+// ---------------------------------------------------------------------------
+
+/** 你遇到某个词时的那个句子 */
+export type ContextEntry = {
+  sentence: string
+  /** 当时从哪个程序抓的（尽力而为） */
+  source?: string
+  capturedAt: number
+}
+
+export type WordStatus = 'active' | 'archived'
+
+/**
+ * 生词本里的一条词。
+ *
+ * 释义是**加入那一刻的快照**，不是对词库的外键引用：
+ * 这样升级词库不会改动你已经背过的卡片，导出的 JSON 也自带可读内容。
+ */
+export type Word = {
+  id: string
+  /** 原形 */
+  lemma: string
+  /** 你当初选中的形态 */
+  display: string
+  phonetic?: string
+  briefZh: string
+  detailZh?: string
+  definitionEn?: string
+  exchange?: string
+  /** 词库给的考试标签，原样保留字符串 */
+  examTags?: string
+  /** 你自己打的标签 */
+  userTags: string[]
+  note?: string
+  source?: string
+  contexts: ContextEntry[]
+  status: WordStatus
+  createdAt: number
+  updatedAt: number
+  deletedAt?: number
+}
+
+export type NewWord = Omit<
+  Word,
+  'id' | 'status' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'userTags' | 'contexts'
+> & {
+  userTags?: string[]
+  contexts?: ContextEntry[]
+}
+
+export type CardState = 'New' | 'Learning' | 'Review' | 'Relearning'
+
+/** 一张复习卡。字段与 FSRS 的调度状态一一对应，见 ADR-0006 */
+export type Card = {
+  id: string
+  wordId: string
+  /** 到期时间（毫秒时间戳） */
+  due: number
+  stability: number
+  difficulty: number
+  elapsedDays: number
+  scheduledDays: number
+  reps: number
+  lapses: number
+  state: CardState
+  lastReview?: number
+  suspended: boolean
+}
+
+/** 一次查询记录 */
+export type LookupRecord = {
+  id: string
+  /** 你实际查的形态 */
+  term: string
+  /** 还原后的原形 */
+  lemma: string
+  lookedUpAt: number
+  sourceApp?: string
+  /** 已加入生词本则指向 Word.id —— 这是"历史"与"生词本"唯一的纽带 */
+  promotedWordId?: string
+}

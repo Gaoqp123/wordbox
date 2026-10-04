@@ -39,6 +39,12 @@ export type RuntimeStatus = {
   hotkeys: HotkeyBinding[]
   /** 词库装载状态 */
   dictionary: DictStatus
+  /** 可写库（user.db）状态：查询历史与生词本都写在这里 */
+  userStore: {
+    ready: boolean
+    path: string
+    error?: string
+  }
   /** 模拟复制（合成 Ctrl+C）的健康状况 */
   syntheticCopy: {
     disabled: boolean
