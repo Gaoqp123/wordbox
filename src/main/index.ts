@@ -18,7 +18,9 @@ let hotkeyBindings: HotkeyBinding[] = []
  * 所以顺序固定为"取词 -> 再显示窗口"。
  */
 async function handleHotkey(trigger: 'word' | 'sentence'): Promise<void> {
-  const result = await grabSelection(trigger)
+  const result = await grabSelection(trigger, {
+    ownWindowFocused: mainWindow?.isFocused() ?? false
+  })
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     // showInactive：显示结果但不抢走阅读器/浏览器的焦点，方便连续取词
@@ -54,7 +56,9 @@ app.whenReady().then(() => {
     sentence: () => void handleHotkey('sentence')
   })
 
-  ipcMain.handle(IPC_CHANNELS.grabManual, (): Promise<GrabResult> => grabSelection('manual'))
+  ipcMain.handle(IPC_CHANNELS.grabManual, (): Promise<GrabResult> =>
+    grabSelection('manual', { ownWindowFocused: mainWindow?.isFocused() ?? false })
+  )
   ipcMain.handle(IPC_CHANNELS.runtimeStatus, (): RuntimeStatus => buildRuntimeStatus())
 
   app.on('activate', () => {

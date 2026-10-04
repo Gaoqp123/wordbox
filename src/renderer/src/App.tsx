@@ -3,9 +3,49 @@ import type { GrabFailureReason, GrabResult, RuntimeStatus } from '@shared/ipc-c
 
 const FAILURE_TEXT: Record<GrabFailureReason, string> = {
   'clipboard-unchanged': '没取到东西：目标程序没有响应模拟复制，或当前没有选中任何文本',
+  'own-window-focused':
+    '按下的瞬间焦点在 WordBox 窗口上，模拟复制只会复制到我们自己。请先点回目标程序再按快捷键',
   empty: '取到的内容是空的',
   'no-letters': '取到的内容里没有英文字母，不像一个词或句子',
   error: '取词过程出错'
+}
+
+/** 诊断面板：定位"为什么没取到"用，可以整段复制发给开发者 */
+function Diagnostics({ result }: { result: GrabResult }): React.JSX.Element | null {
+  const diagnostics = result.diagnostics
+  if (!diagnostics) return null
+
+  const rows: Array<[string, string]> = [
+    ['焦点在自身窗口', diagnostics.ownWindowFocused ? '是' : '否'],
+    ['模拟前的前台窗口', diagnostics.foregroundBefore ?? '(空)'],
+    ['模拟后的前台窗口', diagnostics.foregroundAfter ?? '(空)'],
+    ['剪贴板（取词前）', diagnostics.clipboardBefore ?? '(空)'],
+    ['剪贴板（取词后）', diagnostics.clipboardAfter ?? '(空)'],
+    [
+      '模拟复制退出码',
+      diagnostics.copyExitCode === undefined ? '(未运行)' : String(diagnostics.copyExitCode)
+    ],
+    ['模拟复制错误输出', diagnostics.copyStderr ?? '(无)'],
+    ['等待 / 尝试次数', `${diagnostics.waitedMs} ms / ${diagnostics.attempts} 次`]
+  ]
+
+  return (
+    <details className="mt-3 rounded-lg bg-slate-950/70 p-3 text-xs">
+      <summary className="cursor-pointer text-slate-400">
+        诊断信息（定位问题用，可整段复制）
+      </summary>
+      <table className="mt-2 w-full table-fixed">
+        <tbody>
+          {rows.map(([label, value]) => (
+            <tr key={label}>
+              <td className="w-36 align-top text-slate-500">{label}</td>
+              <td className="break-all text-slate-300 select-text">{value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
+  )
 }
 
 function App(): React.JSX.Element {
@@ -79,22 +119,20 @@ function App(): React.JSX.Element {
 
         {result === null ? (
           <p className="text-sm text-slate-500">还没有取过词</p>
-        ) : result.ok ? (
-          <div className="space-y-2">
-            <p className="text-xs text-slate-400">
-              触发方式 {result.trigger} · 耗时 {result.elapsedMs} ms
-            </p>
-            <p className="rounded-lg bg-slate-800 p-3 text-base break-words">{result.text}</p>
-          </div>
         ) : (
           <div className="space-y-2">
             <p className="text-xs text-slate-400">
               触发方式 {result.trigger} · 耗时 {result.elapsedMs} ms
             </p>
-            <p className="rounded-lg bg-rose-950/60 p-3 text-sm text-rose-200">
-              {FAILURE_TEXT[result.reason]}
-              {result.detail ? `（${result.detail}）` : ''}
-            </p>
+            {result.ok ? (
+              <p className="rounded-lg bg-slate-800 p-3 text-base break-words">{result.text}</p>
+            ) : (
+              <p className="rounded-lg bg-rose-950/60 p-3 text-sm text-rose-200">
+                {FAILURE_TEXT[result.reason]}
+                {result.detail ? `（${result.detail}）` : ''}
+              </p>
+            )}
+            <Diagnostics result={result} />
           </div>
         )}
       </section>

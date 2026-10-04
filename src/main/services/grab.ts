@@ -1,7 +1,12 @@
 import { execFile } from 'child_process'
 import { clipboard } from 'electron'
-import type { GrabResult, HotkeyTrigger } from '@shared/ipc-contract'
-import { judgeCapture } from '@shared/domain/grab-guard'
+import type {
+  GrabDiagnostics,
+  GrabFailureReason,
+  GrabResult,
+  HotkeyTrigger
+} from '@shared/ipc-contract'
+import { judgeCapture, previewText } from '@shared/domain/grab-guard'
 
 /**
  * 取词：程序无关地拿到"用户选中的东西"。
@@ -18,11 +23,54 @@ import { judgeCapture } from '@shared/domain/grab-guard'
  * 代价是多一个短命子进程。如果实测某些程序不响应，再考虑原生输入模拟库。
  */
 
-const COPY_KEYSTROKE_SCRIPT =
-  'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^c")'
+/**
+ * 模拟一次 Ctrl+C，并顺带报告前后台窗口是谁。
+ *
+ * 用 -EncodedCommand 而不是 -Command：脚本里有引号、here-string 和反斜杠，
+ * 走 base64 就完全不用跟多层转义较劲。脚本以 UTF-16LE 编码，这是 PowerShell 的要求。
+ */
+const COPY_KEYSTROKE_SCRIPT = [
+  "$ErrorActionPreference = 'Stop'",
+  '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+  'Add-Type -AssemblyName System.Windows.Forms',
+  '$probeReady = $false',
+  'try {',
+  "  Add-Type -Namespace WordBox -Name Foreground -MemberDefinition @'",
+  'using System;',
+  'using System.Runtime.InteropServices;',
+  'using System.Text;',
+  '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
+  '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);',
+  'public static string Title() {',
+  '  var buffer = new StringBuilder(512);',
+  '  GetWindowText(GetForegroundWindow(), buffer, buffer.Capacity);',
+  '  return buffer.ToString();',
+  '}',
+  "'@",
+  '  $probeReady = $true',
+  '} catch {',
+  '  $probeReady = $false',
+  '}',
+  'function Get-ForegroundTitle {',
+  "  if (-not $probeReady) { return '(probe-unavailable)' }",
+  "  try { return [WordBox.Foreground]::Title() } catch { return '(probe-failed)' }",
+  '}',
+  '$before = Get-ForegroundTitle',
+  "[System.Windows.Forms.SendKeys]::SendWait('^c')",
+  'Start-Sleep -Milliseconds 80',
+  '$after = Get-ForegroundTitle',
+  'Write-Output ("FOREGROUND_BEFORE=" + $before)',
+  'Write-Output ("FOREGROUND_AFTER=" + $after)'
+].join('\n')
+
+function encodedCommand(): string {
+  return Buffer.from(COPY_KEYSTROKE_SCRIPT, 'utf16le').toString('base64')
+}
 
 const POLL_INTERVAL_MS = 40
-const DEFAULT_TIMEOUT_MS = 600
+const DEFAULT_TIMEOUT_MS = 900
+/** 一次取词最多尝试几次模拟复制。取词时序敏感，重试一次能挡掉偶发的空转 */
+const MAX_ATTEMPTS = 2
 
 type ClipboardSnapshot = {
   text: string
@@ -46,22 +94,53 @@ function restore(snap: ClipboardSnapshot): void {
   clipboard.write({ text: snap.text, html: snap.html, rtf: snap.rtf })
 }
 
-function sendCopyKeystroke(): Promise<void> {
-  return new Promise((resolve, reject) => {
+type CopyRunOutcome = {
+  exitCode: number
+  stderr: string
+  foregroundBefore?: string
+  foregroundAfter?: string
+}
+
+function parseForeground(
+  stdout: string
+): Pick<CopyRunOutcome, 'foregroundBefore' | 'foregroundAfter'> {
+  const before = /^FOREGROUND_BEFORE=(.*)$/m.exec(stdout)?.[1]?.trim()
+  const after = /^FOREGROUND_AFTER=(.*)$/m.exec(stdout)?.[1]?.trim()
+  return {
+    ...(before ? { foregroundBefore: before } : {}),
+    ...(after ? { foregroundAfter: after } : {})
+  }
+}
+
+/**
+ * 发送一次模拟复制。
+ *
+ * 不抛异常：取词本身就是一个"可能失败"的动作，失败原因要作为数据往上带，
+ * 而不是变成异常把整条链路打断。
+ */
+function sendCopyKeystroke(): Promise<CopyRunOutcome> {
+  return new Promise((resolve) => {
     execFile(
       'powershell.exe',
       [
         '-NoProfile',
         '-NonInteractive',
+        '-Sta',
         '-WindowStyle',
         'Hidden',
-        '-Command',
-        COPY_KEYSTROKE_SCRIPT
+        '-EncodedCommand',
+        encodedCommand()
       ],
-      { windowsHide: true, timeout: 5000 },
-      (error) => {
-        if (error) reject(error)
-        else resolve()
+      { windowsHide: true, timeout: 8000, encoding: 'utf8' },
+      (error, stdout, stderr) => {
+        const errorCode = (error as { code?: unknown } | null)?.code
+        const exitCode = typeof errorCode === 'number' ? errorCode : error ? -1 : 0
+
+        resolve({
+          exitCode,
+          stderr: (stderr ?? '').trim() || (error?.message ?? ''),
+          ...parseForeground(stdout ?? '')
+        })
       }
     )
   })
@@ -90,28 +169,61 @@ async function waitForClipboardChange(before: string, timeoutMs: number): Promis
 
 export async function grabSelection(
   trigger: HotkeyTrigger,
-  timeoutMs: number = DEFAULT_TIMEOUT_MS
+  options: { timeoutMs?: number; ownWindowFocused?: boolean } = {}
 ): Promise<GrabResult> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const startedAt = Date.now()
   const before = snapshot()
+  const diagnostics: GrabDiagnostics = {
+    ownWindowFocused: options.ownWindowFocused ?? false,
+    clipboardBefore: previewText(before.text),
+    waitedMs: 0,
+    attempts: 0
+  }
 
   try {
-    await sendCopyKeystroke()
-    const captured = await waitForClipboardChange(before.text, timeoutMs)
+    let captured = before.text
+    let attempts = 0
+
+    while (attempts < MAX_ATTEMPTS) {
+      attempts += 1
+      const outcome = await sendCopyKeystroke()
+      diagnostics.copyExitCode = outcome.exitCode
+      if (outcome.foregroundBefore) diagnostics.foregroundBefore = outcome.foregroundBefore
+      if (outcome.foregroundAfter) diagnostics.foregroundAfter = outcome.foregroundAfter
+      if (outcome.stderr) diagnostics.copyStderr = previewText(outcome.stderr, 200)
+
+      const waitStartedAt = Date.now()
+      captured = await waitForClipboardChange(before.text, timeoutMs)
+      diagnostics.waitedMs += Date.now() - waitStartedAt
+
+      if (captured !== before.text) break
+    }
+
+    diagnostics.attempts = attempts
+    diagnostics.clipboardAfter = previewText(captured)
+
     const verdict = judgeCapture(before.text, captured)
     const elapsedMs = Date.now() - startedAt
 
     if (verdict.ok) {
-      return { ok: true, trigger, text: verdict.text, elapsedMs }
+      return { ok: true, trigger, text: verdict.text, elapsedMs, diagnostics }
     }
-    return { ok: false, trigger, reason: verdict.reason, elapsedMs }
+
+    const reason: GrabFailureReason =
+      verdict.reason === 'clipboard-unchanged' && diagnostics.ownWindowFocused
+        ? 'own-window-focused'
+        : verdict.reason
+
+    return { ok: false, trigger, reason, elapsedMs, diagnostics }
   } catch (error) {
     return {
       ok: false,
       trigger,
       reason: 'error',
       detail: error instanceof Error ? error.message : String(error),
-      elapsedMs: Date.now() - startedAt
+      elapsedMs: Date.now() - startedAt,
+      diagnostics
     }
   } finally {
     restore(before)

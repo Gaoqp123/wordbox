@@ -4,6 +4,7 @@ import {
   hasLetters,
   judgeCapture,
   normalizeTypography,
+  previewText,
   stripEdgePunctuation
 } from '@shared/domain/grab-guard'
 
@@ -73,5 +74,21 @@ describe('judgeCapture', () => {
 
   it('剪贴板里原来就是同一个词时仍然算没取到', () => {
     expect(judgeCapture('run', 'run')).toEqual({ ok: false, reason: 'clipboard-unchanged' })
+  })
+})
+
+describe('previewText', () => {
+  it('把换行压成可见的转义，避免诊断面板被撑开', () => {
+    expect(previewText('hello\nworld')).toBe('hello\\nworld')
+  })
+
+  it('超长内容截断并加省略号', () => {
+    const long = 'a'.repeat(100)
+    const result = previewText(long, 10)
+    expect(result).toBe(`${'a'.repeat(10)}…`)
+  })
+
+  it('短内容原样返回', () => {
+    expect(previewText('run', 10)).toBe('run')
   })
 })

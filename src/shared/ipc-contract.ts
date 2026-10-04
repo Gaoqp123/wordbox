@@ -36,6 +36,8 @@ export type RuntimeStatus = {
 export type GrabFailureReason =
   /** 剪贴板内容与取词前完全一致：目标程序没有响应模拟复制 */
   | 'clipboard-unchanged'
+  /** 按下快捷键时焦点在我们自己的窗口上，模拟复制只能复制到我们自己 */
+  | 'own-window-focused'
   /** 取到的内容是空的 */
   | 'empty'
   /** 取到的内容里没有字母，不像英文词或句子 */
@@ -43,12 +45,40 @@ export type GrabFailureReason =
   /** 取词过程本身出错 */
   | 'error'
 
+/**
+ * 取词诊断信息。
+ *
+ * M0 阶段专门用来回答"为什么没取到"：前台窗口是谁、剪贴板前后是什么、
+ * 模拟复制的子进程有没有报错。这些不是给最终用户看的，是给开发者定位问题的。
+ */
+export type GrabDiagnostics = {
+  /** 触发取词时，焦点是否在 WordBox 自己的窗口上 */
+  ownWindowFocused: boolean
+  /** 模拟按键时 Windows 的前台窗口标题 */
+  foregroundBefore?: string
+  /** 按键发完之后的前台窗口标题 */
+  foregroundAfter?: string
+  /** 取词前剪贴板内容预览（截断） */
+  clipboardBefore?: string
+  /** 取词后剪贴板内容预览（截断） */
+  clipboardAfter?: string
+  /** 模拟复制子进程的退出码 */
+  copyExitCode?: number
+  /** 模拟复制子进程的错误输出 */
+  copyStderr?: string
+  /** 等待剪贴板变化的累计时长 */
+  waitedMs: number
+  /** 实际尝试了几次模拟复制 */
+  attempts: number
+}
+
 export type GrabResult =
   | {
       ok: true
       trigger: HotkeyTrigger
       text: string
       elapsedMs: number
+      diagnostics?: GrabDiagnostics
     }
   | {
       ok: false
@@ -56,4 +86,5 @@ export type GrabResult =
       reason: GrabFailureReason
       detail?: string
       elapsedMs: number
+      diagnostics?: GrabDiagnostics
     }

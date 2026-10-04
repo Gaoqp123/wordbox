@@ -43,6 +43,15 @@ export function hasLetters(text: string): boolean {
   return /[A-Za-z]/.test(text)
 }
 
+/** 诊断信息里展示文本时的截断长度 */
+export const PREVIEW_MAX = 60
+
+/** 把一段文本压成单行并截断，只用于诊断展示 */
+export function previewText(input: string, max: number = PREVIEW_MAX): string {
+  const flattened = input.replace(/\r?\n/g, '\\n')
+  return flattened.length <= max ? flattened : `${flattened.slice(0, max)}…`
+}
+
 export type CaptureVerdict = { ok: true; text: string } | { ok: false; reason: GrabFailureReason }
 
 /**
