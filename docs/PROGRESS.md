@@ -69,6 +69,25 @@
 
 ## 4. 会话日志
 
+### 2026-10-04 · CI 首次抓红 → 修复 → 转绿（顺带把远端换成 SSH）
+
+- **CI 第一次红，红得很有价值。** 推送"SQLite 选型"那次提交后，CI 在 lint 步骤失败：
+  新增的 `scripts/spike/sqlite-check.cjs` 被 ESLint 报 8 条错——
+  `@typescript-eslint/no-require-imports` 与 `explicit-function-return-type`。
+  原因是配置把面向 TypeScript 模块的规则套到了全仓库，而 `scripts/` 下是能独立运行的
+  CommonJS 工具脚本。修复：为 `scripts/**/*.{js,cjs,mjs}` 增加 eslint 例外
+  （`sourceType: 'commonjs'`，关掉这两条规则）。这条红线正是 CI 存在的意义——
+  本地 `git commit` 不会拦住你，只有门禁会。
+- **推送失败：`github.com:443` 连不通。** 诊断结果：`api.github.com:443` 正常、
+  `codeload.github.com` 正常、`ssh.github.com:443` 与 `github.com:22` 正常，
+  只有 `github.com:443` 不通，且未配任何代理——属于针对该域名的网络阻断，不是本机故障。
+  处理：确认既有 SSH 密钥可通过 GitHub 认证（`ssh -T git@github.com`）后，
+  把远端从 HTTPS 改为 SSH：`git remote set-url origin git@github.com:Gaoqp123/wordbox.git`。
+  推送随即成功。
+- 结果：CI `completed / success`，39 秒。**M0 收口，七项任务全部完成，远端与门禁均在位。**
+- 遗留（不阻塞）：workflow 里的三个 action 仍是 v4（GitHub 已提示其基于 Node 20），
+  最新为 `actions/checkout@v7`、`actions/setup-node@v7`、`pnpm/action-setup@v6.1`。
+
 ### 2026-10-04 · SQLite 选型确定，M0 收口
 
 - 做了：写 `scripts/spike/sqlite-check.cjs`，在真实 Electron 进程里验证内置 SQLite。
@@ -218,6 +237,7 @@
 | 沙箱把仓库 `.git` 设为只读 | git 的写操作（`add`、`commit`、`tag`、`push`）在沙箱内一律 `Permission denied` | 只读命令（`status`、`log`、`diff`）需要前缀 `git -c safe.directory='*'`；写操作提权执行 |
 | 沙箱创建的文件属主为 `CodexSandboxOffline` | 不影响读写（有写权限），但属主不是你 | 工作片段收尾时用 `icacls <文件> /setowner` 改回 `Gaoqp` |
 | 沙箱读不了 `node_modules` 里的一部分文件 | `tsc` 报 `TS5083 Cannot read file`、`vitest` 报 `EPERM`，有的文件能读有的直接拒绝访问（连 `Get-Acl` 都失败） | 这是沙箱 ACL 策略，不是仓库问题。类型检查 / 测试 / 构建一律提权跑 |
+| `github.com:443` 会被网络阻断 | `git push` 报 `Failed to connect to github.com port 443`，但 `api.github.com`、`ssh.github.com:443` 都正常 | 远端已改用 SSH（`git@github.com:Gaoqp123/wordbox.git`）。遇到推送失败先别怀疑账号或密钥，先测 `Test-NetConnection github.com -Port 443` |
 | `C:\z_software\nodejs` 目录权限 | 仅 Administrators 有完全控制权 | 不要把它设为 npm 全局前缀；不要往那里装东西 |
 | 两份 npm 并存 | 终端里生效的是 12.0.2，node 自带 11.12.1 | 日常无影响，不处理 |
 
